@@ -22,7 +22,7 @@ export default function RoleProtectedRoute({ role, children }) {
       }
 
       try {
-        const response = await api.get('/auth/profile', {
+        const response = await api.get('/api/auth/profile', {
           headers: { Authorization: `Bearer ${token}` },
         });
         const profileRole = response.data?.data?.role;

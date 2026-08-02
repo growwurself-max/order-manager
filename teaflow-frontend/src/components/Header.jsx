@@ -16,7 +16,7 @@ export default function Header() {
         return;
       }
       try {
-        const response = await api.get('/auth/profile');
+        const response = await api.get('/api/auth/profile');
         if (response.data?.data?.role === 'super_admin') {
           setIsAdmin(true);
         } else {
