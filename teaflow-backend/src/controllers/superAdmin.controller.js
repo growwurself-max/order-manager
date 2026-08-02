@@ -81,8 +81,10 @@ export const postShop = async (req, res, next) => {
     const shopData = req.body;
     // Retrieve origin of client request, fallback to production frontend URL
     const origin = req.headers.origin || process.env.FRONTEND_URL || 'https://ordermanager.vercel.app';
+    console.log('Creating shop with origin:', origin);
 
     const result = await createShop(shopData, origin);
+    console.log('Shop created with customer_url:', result.shop.customer_url);
     res.status(HTTP_STATUS.CREATED).json({
       message: 'Shop and owner account created successfully',
       data: result,

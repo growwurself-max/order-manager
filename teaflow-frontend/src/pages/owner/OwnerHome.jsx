@@ -178,6 +178,7 @@ export default function OwnerHome() {
     try {
       const response = await api.get('/api/shop/settings');
       const data = response.data.data;
+      console.log('Shop settings data:', data);
       setShopSettings(data);
       setSettingsForm({
         shopName: data.shopName || '',
@@ -956,7 +957,7 @@ export default function OwnerHome() {
               <div className="flex flex-col sm:flex-row items-center gap-6">
                 <div className="bg-white p-3 rounded-xl border border-gray-200">
                   <img
-                    src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(shopSettings.customer_url || getFrontendUrl() + '/customer?shop=' + shopSettings.id)}`}
+                    src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(getFrontendUrl() + '/customer?shop=' + (shopSettings.id || shopSettings._id))}`}
                     alt="Shop QR Code"
                     className="w-36 h-36"
                   />
@@ -965,7 +966,9 @@ export default function OwnerHome() {
                   <button
                     onClick={async () => {
                       try {
-                        const url = shopSettings.customer_url || getFrontendUrl() + '/customer?shop=' + shopSettings.id;
+                        const shopId = shopSettings.id || shopSettings._id;
+                        const url = getFrontendUrl() + '/customer?shop=' + shopId;
+                        console.log('QR Download URL:', url);
                         const qrDataUrl = `https://api.qrserver.com/v1/create-qr-code/?size=500x500&data=${encodeURIComponent(url)}`;
                         const response = await fetch(qrDataUrl);
                         const blob = await response.blob();
@@ -988,7 +991,9 @@ export default function OwnerHome() {
                   
                   <button
                     onClick={() => {
-                      const url = shopSettings.customer_url || getFrontendUrl() + '/customer?shop=' + shopSettings.id;
+                      const shopId = shopSettings.id || shopSettings._id;
+                      const url = getFrontendUrl() + '/customer?shop=' + shopId;
+                      console.log('QR Print URL:', url);
                       const printWindow = window.open('', '_blank');
                       const qrDataUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(url)}`;
                       printWindow.document.write(`

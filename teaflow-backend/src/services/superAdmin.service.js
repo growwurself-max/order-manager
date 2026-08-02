@@ -239,6 +239,7 @@ export const createShop = async (shopData, origin) => {
 
   // 3. Update shop settings with owner_id & customer_url
   const customerUrl = `${origin}/customer?shop=${shop.id}`;
+  console.log('Generated customer_url:', customerUrl);
   const { data: updatedShop, error: updateError } = await supabase
     .from('shop_settings')
     .update({

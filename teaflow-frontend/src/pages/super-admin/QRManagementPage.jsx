@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getShops } from '../../services/superAdminApi';
 import { useToast } from '../../context/ToastContext';
+import { getFrontendUrl } from '../../services/api';
 
 export default function QRManagementPage() {
   const { showToast } = useToast();
@@ -101,7 +102,7 @@ export default function QRManagementPage() {
               >
                 <div className="bg-white rounded-xl p-3 inline-block mb-4">
                   <img
-                    src={'https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=' + encodeURIComponent(shop.customer_url || '')}
+                    src={'https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=' + encodeURIComponent(shop.customer_url || (getFrontendUrl() + '/customer?shop=' + (shop.id || shop._id)))}
                     alt={shop.shop_name + ' QR'}
                     className="w-32 h-32"
                   />
@@ -117,13 +118,13 @@ export default function QRManagementPage() {
                   </button>
                   <div className="flex gap-2">
                     <button
-                      onClick={() => downloadQR(shop.customer_url, shop.shop_name, 'png')}
+                      onClick={() => downloadQR(getFrontendUrl() + '/customer?shop=' + (shop.id || shop._id), shop.shop_name, 'png')}
                       className="flex-1 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 py-2 rounded-lg text-xs font-medium transition"
                     >
                       PNG
                     </button>
                     <button
-                      onClick={() => printPDF(shop.customer_url, shop.shop_name)}
+                      onClick={() => printPDF(getFrontendUrl() + '/customer?shop=' + (shop.id || shop._id), shop.shop_name)}
                       className="flex-1 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 py-2 rounded-lg text-xs font-medium transition"
                     >
                       PDF
@@ -151,22 +152,22 @@ export default function QRManagementPage() {
               </div>
               <div className="bg-white rounded-2xl p-6 mb-6 flex justify-center">
                 <img
-                  src={'https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=' + encodeURIComponent(qrShop.customer_url || '')}
+                  src={'https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=' + encodeURIComponent(getFrontendUrl() + '/customer?shop=' + (qrShop.id || qrShop._id))}
                   alt={qrShop.shop_name + ' QR'}
                   className="w-48 h-48"
                 />
               </div>
               <p className="text-sm font-semibold text-white mb-1">{qrShop.shop_name}</p>
-              <p className="text-xs text-slate-400 mb-6 break-all">{qrShop.customer_url}</p>
+              <p className="text-xs text-slate-400 mb-6 break-all">{getFrontendUrl() + '/customer?shop=' + (qrShop.id || qrShop._id)}</p>
               <div className="space-y-3">
                 <button
-                  onClick={() => downloadQR(qrShop.customer_url, qrShop.shop_name, 'png')}
+                  onClick={() => downloadQR(getFrontendUrl() + '/customer?shop=' + (qrShop.id || qrShop._id), qrShop.shop_name, 'png')}
                   className="w-full bg-gradient-to-r from-indigo-500 to-purple-600 text-white py-3 rounded-xl font-semibold transition"
                 >
                   Download PNG
                 </button>
                 <button
-                  onClick={() => printPDF(qrShop.customer_url, qrShop.shop_name)}
+                  onClick={() => printPDF(getFrontendUrl() + '/customer?shop=' + (qrShop.id || qrShop._id), qrShop.shop_name)}
                   className="w-full bg-white/5 hover:bg-white/10 text-white py-3 rounded-xl font-semibold transition"
                 >
                   Print / Download PDF

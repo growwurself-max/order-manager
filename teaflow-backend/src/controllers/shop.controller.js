@@ -5,8 +5,10 @@ import { getShopSettingsById, updateShopSettings as updateShopSettingsDB } from 
 export const getShopSettings = async (req, res, next) => {
   try {
     const shopId = req.user.shopId;
+    console.log('Fetching shop settings for shopId:', shopId);
 
     const shopSettings = await getShopSettingsById(shopId);
+    console.log('Shop settings data:', shopSettings);
 
     if (!shopSettings) {
       return res.status(HTTP_STATUS.NOT_FOUND).json({
