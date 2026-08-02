@@ -3,7 +3,7 @@ import React, { createContext, useContext, useState, useEffect, useRef, useCallb
 const OrderNotificationContext = createContext(null);
 
 const READY_ORDERS_KEY = 'teaflow_ready_orders';
-const API_BASE = 'http://localhost:5000/api';
+const API_BASE = 'https://ordermanager-backend-30x2.onrender.com';
 
 function playLoudAlert(audioContextRef) {
   try {

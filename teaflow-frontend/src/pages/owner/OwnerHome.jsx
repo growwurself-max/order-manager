@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { api, setRoleSession, clearRoleSession } from '../../services/api';
+import { api, setRoleSession, clearRoleSession, getFrontendUrl } from '../../services/api';
 import { useToast } from '../../context/ToastContext';
 
 export default function OwnerHome() {
@@ -96,7 +96,7 @@ export default function OwnerHome() {
 
   const checkAuth = async () => {
     try {
-      const response = await api.get('/auth/profile');
+      const response = await api.get('/api/auth/profile');
       setIsLoggedIn(response.data?.data?.role === 'owner');
     } catch (err) {
       setIsLoggedIn(false);
@@ -130,10 +130,10 @@ export default function OwnerHome() {
 
   const fetchDashboardStats = async () => {
     try {
-      const response = await api.get('/orders/dashboard/stats');
+      const response = await api.get('/api/orders/dashboard/stats');
       const statsData = response.data.data;
       // Fetch recall stats
-      const recallResponse = await api.get('/orders/recall-stats');
+      const recallResponse = await api.get('/api/orders/recall-stats');
       const recallData = recallResponse.data.data;
       setDashboardData({
         ...statsData,
@@ -146,7 +146,7 @@ export default function OwnerHome() {
 
   const fetchMenu = async () => {
     try {
-      const response = await api.get('/menu');
+      const response = await api.get('/api/menu');
       const data = Array.isArray(response.data) ? response.data : (response.data.data || []);
       setMenuItems(data);
     } catch (err) {
@@ -156,7 +156,7 @@ export default function OwnerHome() {
 
   const fetchWorkers = async () => {
     try {
-      const response = await api.get('/workers');
+      const response = await api.get('/api/workers');
       const data = Array.isArray(response.data) ? response.data : (response.data.data || []);
       setWorkers(data);
     } catch (err) {
@@ -166,7 +166,7 @@ export default function OwnerHome() {
 
   const fetchOrders = async () => {
     try {
-      const response = await api.get('/orders');
+      const response = await api.get('/api/orders');
       const data = Array.isArray(response.data) ? response.data : (response.data.data || []);
       setOrders(data);
     } catch (err) {
@@ -176,7 +176,7 @@ export default function OwnerHome() {
 
   const fetchShopSettings = async () => {
     try {
-      const response = await api.get('/shop/settings');
+      const response = await api.get('/api/shop/settings');
       const data = response.data.data;
       setShopSettings(data);
       setSettingsForm({
@@ -192,7 +192,7 @@ export default function OwnerHome() {
 
   const fetchOwnerProfile = async () => {
     try {
-      const response = await api.get('/auth/profile');
+      const response = await api.get('/api/auth/profile');
       setOwnerProfile(response.data.data);
     } catch (err) {
       // Silent fail
@@ -209,7 +209,7 @@ export default function OwnerHome() {
     setLoginLoading(true);
     setError('');
     try {
-      const response = await api.post('/auth/login/owner', {
+      const response = await api.post('/api/auth/login/owner', {
         email: loginForm.email,
         password: loginForm.password,
       });
@@ -227,7 +227,7 @@ export default function OwnerHome() {
 
   const handleLogout = async () => {
     try {
-      await api.post('/auth/logout');
+      await api.post('/api/auth/logout');
       clearRoleSession('owner');
       setIsLoggedIn(false);
       setDashboardData(null);
@@ -253,11 +253,11 @@ export default function OwnerHome() {
       };
 
       if (editingMenuItem) {
-        await api.put(`/menu/${editingMenuItem._id}`, payload);
+        await api.put(`/api/menu/${editingMenuItem._id}`, payload);
         showToast('Menu item updated successfully', 'success');
         setEditingMenuItem(null);
       } else {
-        await api.post('/menu', payload);
+        await api.post('/api/menu', payload);
         showToast('Menu item added successfully', 'success');
       }
       setMenuItemForm({
@@ -291,7 +291,7 @@ export default function OwnerHome() {
     if (!window.confirm('Are you sure you want to delete this menu item?')) return;
     setActionLoading(true);
     try {
-      await api.delete(`/menu/${itemId}`);
+      await api.delete(`/api/menu/${itemId}`);
       showToast('Menu item deleted successfully', 'success');
       fetchMenu();
     } catch (err) {
@@ -313,11 +313,11 @@ export default function OwnerHome() {
       };
 
       if (editingWorker) {
-        await api.put(`/workers/${editingWorker._id}`, payload);
+        await api.put(`/api/workers/${editingWorker._id}`, payload);
         showToast('Worker updated successfully', 'success');
         setEditingWorker(null);
       } else {
-        await api.post('/workers', { ...payload, pin: workerForm.pin });
+        await api.post('/api/workers', { ...payload, pin: workerForm.pin });
         showToast('Worker added successfully', 'success');
       }
       setWorkerForm({ username: '', name: '', pin: '', role: 'worker' });
@@ -344,7 +344,7 @@ export default function OwnerHome() {
     if (!window.confirm('Are you sure you want to delete this worker?')) return;
     setActionLoading(true);
     try {
-      await api.delete(`/workers/${workerId}`);
+      await api.delete(`/api/workers/${workerId}`);
       showToast('Worker deleted successfully', 'success');
       fetchWorkers();
     } catch (err) {
@@ -367,7 +367,7 @@ export default function OwnerHome() {
           allowPreorder: settingsForm.allowPreorder,
         },
       };
-      await api.put('/shop/settings', payload);
+      await api.put('/api/shop/settings', payload);
       showToast('Shop settings updated successfully', 'success');
     } catch (err) {
       showToast(err.response?.data?.message || 'Failed to save settings', 'error');
@@ -379,7 +379,7 @@ export default function OwnerHome() {
   // CSV Export
   const handleExportCSV = async () => {
     try {
-      const response = await api.get('/orders/export/csv', { responseType: 'blob' });
+      const response = await api.get('/api/orders/export/csv', { responseType: 'blob' });
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
       link.href = url;
@@ -400,7 +400,7 @@ export default function OwnerHome() {
     if (!window.confirm('Are you sure you want to archive all completed orders? This action cannot be undone.')) return;
     setActionLoading(true);
     try {
-      await api.post('/orders/archive');
+      await api.post('/api/orders/archive');
       showToast('Orders archived successfully', 'success');
       fetchOrders();
     } catch (err) {
@@ -431,7 +431,7 @@ export default function OwnerHome() {
     if (!window.confirm('Notify customer to collect their order?')) return;
     setActionLoading(true);
     try {
-      await api.post(`/orders/${orderId}/recall`);
+      await api.post(`/api/orders/${orderId}/recall`);
       // Play notification sound
       try {
         const ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -461,7 +461,7 @@ export default function OwnerHome() {
     if (!window.confirm('Are you sure you want to permanently delete all archived orders? This action cannot be undone and will free up storage space.')) return;
     setActionLoading(true);
     try {
-      await api.post('/orders/delete-archived');
+      await api.post('/api/orders/delete-archived');
       showToast('Archived orders deleted successfully', 'success');
       fetchOrders();
     } catch (err) {
@@ -956,7 +956,7 @@ export default function OwnerHome() {
               <div className="flex flex-col sm:flex-row items-center gap-6">
                 <div className="bg-white p-3 rounded-xl border border-gray-200">
                   <img
-                    src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(shopSettings.customer_url || window.location.origin + '/customer?shop=' + shopSettings.id)}`}
+                    src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(shopSettings.customer_url || getFrontendUrl() + '/customer?shop=' + shopSettings.id)}`}
                     alt="Shop QR Code"
                     className="w-36 h-36"
                   />
@@ -965,7 +965,7 @@ export default function OwnerHome() {
                   <button
                     onClick={async () => {
                       try {
-                        const url = shopSettings.customer_url || window.location.origin + '/customer?shop=' + shopSettings.id;
+                        const url = shopSettings.customer_url || getFrontendUrl() + '/customer?shop=' + shopSettings.id;
                         const qrDataUrl = `https://api.qrserver.com/v1/create-qr-code/?size=500x500&data=${encodeURIComponent(url)}`;
                         const response = await fetch(qrDataUrl);
                         const blob = await response.blob();
@@ -988,7 +988,7 @@ export default function OwnerHome() {
                   
                   <button
                     onClick={() => {
-                      const url = shopSettings.customer_url || window.location.origin + '/customer?shop=' + shopSettings.id;
+                      const url = shopSettings.customer_url || getFrontendUrl() + '/customer?shop=' + shopSettings.id;
                       const printWindow = window.open('', '_blank');
                       const qrDataUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(url)}`;
                       printWindow.document.write(`

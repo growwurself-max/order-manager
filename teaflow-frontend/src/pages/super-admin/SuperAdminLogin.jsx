@@ -16,13 +16,13 @@ export default function SuperAdminLogin() {
     setLoading(true);
 
     try {
-      const result = await login(email, password);
+      const result = await login(email.trim(), password.trim());
       console.log('Login result:', result);
       toast.success('Login successful');
       navigate('/super-admin/dashboard');
     } catch (error) {
       console.error('Login error:', error);
-      const errorMessage = error.response?.data?.message || error.message || 'Login failed';
+      const errorMessage = error.response?.data?.message || error.message || 'Invalid credentials';
       toast.error(errorMessage);
     } finally {
       setLoading(false);
@@ -79,7 +79,7 @@ export default function SuperAdminLogin() {
               disabled={loading}
               className="w-full bg-gradient-to-r from-indigo-500 to-purple-600 text-white py-3 rounded-xl font-semibold hover:from-indigo-600 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-slate-900 transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {loading ? 'Signing in...' : 'Sign In'}
+              {loading ? 'Logging in...' : 'Login'}
             </button>
           </form>
 

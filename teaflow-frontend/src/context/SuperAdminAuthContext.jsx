@@ -16,12 +16,12 @@ export const SuperAdminAuthProvider = ({ children }) => {
       return;
     }
     try {
-      const response = await api.get('/auth/profile', {
+      const response = await api.get('/api/super-admin/stats', {
         headers: { Authorization: `Bearer ${storedToken}` },
       });
-      if (response.data?.data?.role === 'super_admin') {
-        setUser(response.data.data);
+      if (response.status === 200) {
         setToken(storedToken);
+        setUser({ role: 'super_admin' });
       } else {
         clearRoleSession('super_admin');
       }
@@ -53,6 +53,9 @@ export const SuperAdminAuthProvider = ({ children }) => {
       return response.data;
     } catch (error) {
       console.error('Login error in context:', error);
+      if (error.response) {
+        console.error('Error response:', error.response.data);
+      }
       throw error;
     }
   };

@@ -53,7 +53,7 @@ export default function WorkerHome() {
     if (pollingRef.current) clearInterval(pollingRef.current);
     pollingRef.current = setInterval(async () => {
       try {
-        const response = await api.get('/orders/active');
+        const response = await api.get('/api/orders/active');
         console.log('Polling orders response:', response.data);
         const newOrders = Array.isArray(response.data.data) ? response.data.data : [];
         setOrders(prev => {
@@ -86,7 +86,7 @@ export default function WorkerHome() {
 
   const checkAuth = async () => {
     try {
-      const response = await api.get('/auth/profile');
+      const response = await api.get('/api/auth/profile');
       setIsLoggedIn(response.data?.data?.role === 'worker');
     } catch (err) {
       setIsLoggedIn(false);
@@ -99,7 +99,7 @@ export default function WorkerHome() {
     setError('');
     setIsLoading(true);
     try {
-      const response = await api.get('/orders/active');
+      const response = await api.get('/api/orders/active');
       console.log('Orders response:', response.data);
       const ordersData = response.data.data || response.data || [];
       console.log('Orders data:', ordersData);
@@ -123,7 +123,7 @@ export default function WorkerHome() {
     setLoginLoading(true);
     setError('');
     try {
-      const response = await api.post('/auth/login/worker', {
+      const response = await api.post('/api/auth/login/worker', {
         username: loginForm.username,
         password: loginForm.password,
       });
@@ -142,7 +142,7 @@ export default function WorkerHome() {
   const updateOrderStatus = async (orderId, newStatus) => {
     setError('');
     try {
-      const response = await api.patch(`/orders/${orderId}/status`, {
+      const response = await api.patch(`/api/orders/${orderId}/status`, {
         status: newStatus,
       });
       showToast(`Order marked as ${newStatus}`, 'success');
@@ -168,7 +168,7 @@ export default function WorkerHome() {
     if (!window.confirm(`Mark order as ${newStatus}?`)) return;
     setError('');
     try {
-      const response = await api.patch(`/orders/${orderId}/payment`, { paymentStatus: newStatus });
+      const response = await api.patch(`/api/orders/${orderId}/payment`, { paymentStatus: newStatus });
       showToast(`Order marked as ${newStatus}`, 'success');
       setOrders(prev => {
         const updated = prev.map(order =>
@@ -186,7 +186,7 @@ export default function WorkerHome() {
   const recallCustomer = async (orderId) => {
     setError('');
     try {
-      const response = await api.post(`/orders/${orderId}/recall`);
+      const response = await api.post(`/api/orders/${orderId}/recall`);
       playNotificationSound();
       showToast('Customer notified successfully', 'success');
       setOrders(prev => {
@@ -204,7 +204,7 @@ export default function WorkerHome() {
 
   const handleLogout = async () => {
     try {
-      await api.post('/auth/logout');
+      await api.post('/api/auth/logout');
       clearRoleSession('worker');
       setIsLoggedIn(false);
       setOrders([]);

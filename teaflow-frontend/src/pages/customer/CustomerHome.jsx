@@ -13,11 +13,14 @@ export default function CustomerHome() {
   const [shopId, setShopId] = useState(() => {
     const params = new URLSearchParams(window.location.search);
     const shopFromUrl = params.get('shop');
+    console.log('Shop ID from URL:', shopFromUrl);
     if (shopFromUrl) {
       localStorage.setItem('shopId', shopFromUrl);
       return shopFromUrl;
     }
-    return localStorage.getItem('shopId') || '';
+    const storedShopId = localStorage.getItem('shopId');
+    console.log('Shop ID from localStorage:', storedShopId);
+    return storedShopId || '';
   });
   const [menuItems, setMenuItems] = useState([]);
   const [cart, setCart] = useState([]);
@@ -42,7 +45,7 @@ export default function CustomerHome() {
           // Check if this customer has active orders
           if (parsed.phone) {
             try {
-              const url = `/orders/active-order/${encodeURIComponent(parsed.phone.trim())}` + (shopId ? `?shopId=${shopId}` : '');
+              const url = `/api/orders/active-order/${encodeURIComponent(parsed.phone.trim())}` + (shopId ? `?shopId=${shopId}` : '');
               const response = await api.get(url);
               const data = response.data;
               if (data.data && Array.isArray(data.data) && data.data.length > 0) {
@@ -112,10 +115,17 @@ export default function CustomerHome() {
     setMenuLoading(true);
     setError('');
     try {
-      const url = '/menu' + (shopId ? `?shopId=${shopId}` : '');
+      const url = '/api/menu' + (shopId ? `?shopId=${shopId}` : '');
+      console.log('Fetching menu from:', url);
+      console.log('API base URL:', import.meta.env.VITE_API_URL);
       const response = await api.get(url);
-      setMenuItems(Array.isArray(response.data) ? response.data : (response.data.data || []));
+      console.log('Menu response:', response.data);
+      const menuData = Array.isArray(response.data) ? response.data : (response.data.data || []);
+      console.log('Menu items count:', menuData.length);
+      setMenuItems(menuData);
     } catch (err) {
+      console.error('Menu fetch error:', err);
+      console.error('Error response:', err.response);
       setError(err.response?.data?.message || 'Failed to load menu. Please try again.');
     } finally {
       setMenuLoading(false);
@@ -147,7 +157,7 @@ export default function CustomerHome() {
 
     for (const order of orders) {
       try {
-        const response = await api.get(`/orders/${order._id || order.orderId}/status`);
+        const response = await api.get(`/api/orders/${order._id || order.orderId}/status`);
         const data = response.data.data || response.data;
         updatedOrders.push(data);
 
@@ -208,7 +218,7 @@ export default function CustomerHome() {
       }));
 
       // Check if customer has active orders
-      const url = `/orders/active-order/${encodeURIComponent(customerInfo.phone.trim())}` + (shopId ? `?shopId=${shopId}` : '');
+      const url = `/api/orders/active-order/${encodeURIComponent(customerInfo.phone.trim())}` + (shopId ? `?shopId=${shopId}` : '');
       const response = await api.get(url);
       const data = response.data;
       if (data.data && Array.isArray(data.data) && data.data.length > 0) {
@@ -284,7 +294,7 @@ export default function CustomerHome() {
     setLoading(true);
     setError('');
     try {
-      const url = '/orders' + (shopId ? `?shopId=${shopId}` : '');
+      const url = '/api/orders' + (shopId ? `?shopId=${shopId}` : '');
       const response = await api.post(url, {
         customer: customerInfo,
         items: cart.map(i => ({
@@ -309,7 +319,7 @@ export default function CustomerHome() {
   const startTracking = () => {
     if (orderResult) {
       // Fetch full order details for tracking
-      api.get(`/orders/${orderResult.orderId}/status`).then(response => {
+      api.get(`/api/orders/${orderResult.orderId}/status`).then(response => {
         const data = response.data.data || response.data;
         setTrackingOrders([data]);
         setStep('track');

@@ -1,8 +1,11 @@
 import axios from 'axios';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://ordermanager-backend-30x2.onrender.com';
+const FRONTEND_URL = import.meta.env.VITE_FRONTEND_URL || 'https://ordermanager.vercel.app';
 
 export const roleTokenKey = (role) => `teaflow_${role}_token`;
+
+export const getFrontendUrl = () => FRONTEND_URL;
 
 export const setRoleSession = (role, token) => {
   localStorage.setItem(roleTokenKey(role), token);

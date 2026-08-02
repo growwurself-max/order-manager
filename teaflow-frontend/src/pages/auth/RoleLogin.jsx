@@ -7,7 +7,7 @@ const CONFIG = {
   owner: {
     title: 'Owner Login',
     subtitle: 'Manage menu, workers, orders, shop settings, QR, subscriptions, and reports',
-    endpoint: '/auth/login/owner',
+    endpoint: '/api/auth/login/owner',
     target: '/owner',
     fields: [
       { name: 'email', label: 'Email', type: 'email', placeholder: 'owner@demo.com' },
@@ -17,7 +17,7 @@ const CONFIG = {
   worker: {
     title: 'Worker Login',
     subtitle: 'View orders and mark them ready or complete',
-    endpoint: '/auth/login/worker',
+    endpoint: '/api/auth/login/worker',
     target: '/worker',
     fields: [
       { name: 'username', label: 'Username', type: 'text', placeholder: 'worker@demo.com' },
@@ -40,7 +40,7 @@ export default function RoleLogin({ role }) {
     if (!token) return;
 
     api
-      .get('/auth/profile', { headers: { Authorization: `Bearer ${token}` } })
+      .get('/api/auth/profile', { headers: { Authorization: `Bearer ${token}` } })
       .then((response) => {
         if (response.data?.data?.role === role) setAuthenticated(true);
       })
@@ -55,7 +55,13 @@ export default function RoleLogin({ role }) {
     setError('');
 
     try {
-      const response = await api.post(config.endpoint, form);
+      // Trim form values to prevent whitespace issues
+      const trimmedForm = {};
+      Object.keys(form).forEach(key => {
+        trimmedForm[key] = form[key] ? form[key].trim() : '';
+      });
+
+      const response = await api.post(config.endpoint, trimmedForm);
       setRoleSession(role, response.data.token);
       showToast('Login successful', 'success');
       navigate(config.target, { replace: true });

@@ -31,19 +31,32 @@ const allowedOrigins = process.env.CORS_ORIGIN
   ? process.env.CORS_ORIGIN.split(',').map((origin) => origin.trim())
   : [];
 
+// Force wildcard for development to handle browser preview and various local origins
+if (process.env.NODE_ENV === 'development') {
+  allowedOrigins.push('*');
+}
+
 // Dynamic CORS origin function to support multiple origins correctly
+// IMPORTANT: When credentials: true, we must reflect the specific origin
+// instead of using '*', because browsers reject 'Access-Control-Allow-Origin: *'
+// for credentialed requests (cookies, Authorization headers).
 const corsOptions = {
   origin: (origin, callback) => {
     // Allow requests with no origin (e.g., mobile apps, curl, same-origin)
     if (!origin) return callback(null, true);
-    // Allow all origins if wildcard is configured
-    if (allowedOrigins.includes('*')) return callback(null, true);
+    // If wildcard is configured, reflect the request origin back
+    // (required for credentials: true to work with browsers)
+    if (allowedOrigins.includes('*')) return callback(null, origin);
     // Reflect the specific origin if it is in the allowed list
     if (allowedOrigins.includes(origin)) return callback(null, origin);
     // Reject disallowed origins
     return callback(new Error('Not allowed by CORS'));
   },
   credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
+  exposedHeaders: ['Content-Disposition'],
+  maxAge: 86400, // 24 hours - cache preflight response
 };
 
 app.use(cors(corsOptions));

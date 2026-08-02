@@ -140,7 +140,7 @@ const seedDatabase = async () => {
       { email: CREDENTIALS.owner.email }
     );
 
-    const customerUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/customer?shop=${shop.id}`;
+    const customerUrl = `${process.env.FRONTEND_URL || 'https://ordermanager.vercel.app'}/customer?shop=${shop.id}`;
     await supabase
       .from('shop_settings')
       .update({ owner_id: owner.id, customer_url: customerUrl, updated_at: new Date().toISOString() })
