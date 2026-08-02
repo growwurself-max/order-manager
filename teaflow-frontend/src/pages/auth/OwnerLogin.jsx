@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api, setRoleSession } from '../../services/api';
-import { useToast } from '../../context/ToastContext';
+import toast from 'react-hot-toast';
 
 export default function OwnerLogin() {
   const [email, setEmail] = useState('');
@@ -9,7 +9,6 @@ export default function OwnerLogin() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const navigate = useNavigate();
-  const { showToast } = useToast();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -22,12 +21,12 @@ export default function OwnerLogin() {
         password: password.trim(),
       });
       setRoleSession('owner', response.data.token);
-      showToast('Login successful', 'success');
+      toast.success('Login successful');
       navigate('/owner', { replace: true });
     } catch (err) {
       const message = err.response?.data?.message || 'Login failed. Please try again.';
       setError(message);
-      showToast(message, 'error');
+      toast.error(message);
     } finally {
       setLoading(false);
     }
