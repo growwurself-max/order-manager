@@ -11,7 +11,8 @@ import SuperAdminProtectedRoute from './components/SuperAdminProtectedRoute';
 import RoleProtectedRoute from './components/RoleProtectedRoute';
 import SuperAdminLayout from './layouts/SuperAdminLayout';
 import SuperAdminLogin from './pages/super-admin/SuperAdminLogin';
-import RoleLogin from './pages/auth/RoleLogin';
+import OwnerLogin from './pages/auth/OwnerLogin';
+import WorkerLogin from './pages/auth/WorkerLogin';
 import SuperAdminDashboardPage from './pages/super-admin/SuperAdminDashboardPage';
 import ShopManagementPage from './pages/super-admin/ShopManagementPage';
 import OwnerManagementPage from './pages/super-admin/OwnerManagementPage';
@@ -24,66 +25,66 @@ export default function App() {
   return (
     <BrowserRouter>
       <OrderNotificationProvider>
-        <Routes>
-          {/* Landing page - default route */}
-          <Route path="/" element={<LandingPage />} />
-          
-          {/* Existing app routes */}
-          <Route element={<AppLayout />}>
-            <Route path="/customer" element={<CustomerHome />} />
-            <Route path="/worker/login" element={<RoleLogin role="worker" />} />
-            <Route
-              path="/worker"
-              element={
-                <RoleProtectedRoute role="worker">
-                  <WorkerHome />
-                </RoleProtectedRoute>
-              }
-            />
-            <Route path="/owner/login" element={<RoleLogin role="owner" />} />
-            <Route
-              path="/owner"
-              element={
-                <RoleProtectedRoute role="owner">
-                  <OwnerHome />
-                </RoleProtectedRoute>
-              }
-            />
-          </Route>
+        <ToastProvider>
+          <Routes>
+            {/* Landing page - default route */}
+            <Route path="/" element={<LandingPage />} />
 
-          {/* Super Admin Panel with nested routes */}
-          <Route
-            path="/super-admin/login"
-            element={
-              <ToastProvider>
+            {/* Login routes */}
+            <Route path="/owner/login" element={<OwnerLogin />} />
+            <Route path="/worker/login" element={<WorkerLogin />} />
+            <Route
+              path="/super-admin/login"
+              element={
                 <SuperAdminAuthProvider>
                   <SuperAdminLogin />
                 </SuperAdminAuthProvider>
-              </ToastProvider>
-            }
-          />
-          <Route
-            path="/super-admin"
-            element={
-              <ToastProvider>
+              }
+            />
+
+            {/* Protected app routes */}
+            <Route element={<AppLayout />}>
+              <Route path="/customer" element={<CustomerHome />} />
+              <Route
+                path="/worker"
+                element={
+                  <RoleProtectedRoute role="worker">
+                    <WorkerHome />
+                  </RoleProtectedRoute>
+                }
+              />
+              <Route
+                path="/owner"
+                element={
+                  <RoleProtectedRoute role="owner">
+                    <OwnerHome />
+                  </RoleProtectedRoute>
+                }
+              />
+            </Route>
+
+            {/* Super Admin Panel with nested routes */}
+            <Route
+              path="/super-admin"
+              element={
                 <SuperAdminAuthProvider>
                   <SuperAdminProtectedRoute>
                     <SuperAdminLayout />
                   </SuperAdminProtectedRoute>
                 </SuperAdminAuthProvider>
-              </ToastProvider>
-            }
-          >
-            <Route index element={<Navigate to="/super-admin/dashboard" replace />} />
-            <Route path="dashboard" element={<SuperAdminDashboardPage />} />
-            <Route path="shops" element={<ShopManagementPage />} />
-            <Route path="owners" element={<OwnerManagementPage />} />
-            <Route path="subscriptions" element={<SubscriptionPage />} />
-            <Route path="analytics" element={<AnalyticsPage />} />
-            <Route path="qr-codes" element={<QRManagementPage />} />
-            <Route path="settings" element={<SettingsPage />} />
-          </Route>
-        </Routes>
+              }
+            >
+              <Route index element={<Navigate to="/super-admin/dashboard" replace />} />
+              <Route path="dashboard" element={<SuperAdminDashboardPage />} />
+              <Route path="shops" element={<ShopManagementPage />} />
+              <Route path="owners" element={<OwnerManagementPage />} />
+              <Route path="subscriptions" element={<SubscriptionPage />} />
+              <Route path="analytics" element={<AnalyticsPage />} />
+              <Route path="qr-codes" element={<QRManagementPage />} />
+              <Route path="settings" element={<SettingsPage />} />
+            </Route>
+          </Routes>
+        </ToastProvider>
       </OrderNotificationProvider>
     </BrowserRouter>
   );
