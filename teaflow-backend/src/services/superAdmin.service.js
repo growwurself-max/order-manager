@@ -3,7 +3,7 @@ import { supabase } from '../config/supabase.js';
 import { generateToken } from '../middleware/auth.js';
 import { PASSWORD_SALT_ROUNDS } from '../utils/constants.js';
 import { AuthError, NotFoundError } from '../utils/AppError.js';
-import { generateShopId, validateShopIdFormat, getShopByIdentifier } from '../utils/generateShopId.js';
+import { generateShopId, validateShopIdFormat, getShopByIdentifier, getShopIdentifierFromRow } from '../utils/generateShopId.js';
 
 // ===========================
 // Auth
@@ -176,6 +176,7 @@ export const getAllShops = async (filters = {}) => {
     const owner = owners.find((o) => o.shop_id === shop.id);
     return {
       ...shop,
+      shop_identifier: getShopIdentifierFromRow(shop) || shop.shop_identifier || null,
       owner: owner || null,
     };
   });
@@ -204,21 +205,23 @@ export const createShop = async (shopData, origin) => {
   console.log('Generated Shop ID:', shopIdentifier);
 
   // 2. Insert shop settings (without owner_id first)
+  const shopSettings = {
+    orderPrefix: 'OM',
+    allowPreorder: false,
+    taxRate: 0.18,
+    currency: 'INR',
+    notifications: { email: true, sms: false },
+    shop_identifier: shopIdentifier,
+  };
+
   const shopInsertData = {
     shop_name: shopData.shopName,
-    shop_identifier: shopIdentifier,
     address: { street: shopData.streetAddress || '' },
     contact: {
       phone: shopData.phoneNumber,
       email: shopData.ownerEmail,
     },
-    settings: {
-      orderPrefix: 'OM',
-      allowPreorder: false,
-      taxRate: 0.18,
-      currency: 'INR',
-      notifications: { email: true, sms: false },
-    },
+    settings: shopSettings,
     branding: {
       primaryColor: '#FF6F00',
       theme: 'light',
@@ -307,6 +310,10 @@ export const createShop = async (shopData, origin) => {
   const shopUpdateData = {
     owner_id: owner.id,
     customer_url: customerUrl,
+    settings: {
+      ...(typeof shop.settings === 'object' && !Array.isArray(shop.settings) ? shop.settings : {}),
+      shop_identifier: shopIdentifier,
+    },
   };
   console.log('Shop update data:', JSON.stringify(shopUpdateData, null, 2));
 
@@ -337,7 +344,11 @@ export const createShop = async (shopData, origin) => {
 
   console.log('=== CREATE SHOP SUCCESS ===');
   return {
-    shop: updatedShop,
+    shop: {
+      ...updatedShop,
+      shop_identifier: shopIdentifier,
+      customer_url: customerUrl,
+    },
     owner: {
       id: owner.id,
       name: owner.name,
@@ -357,34 +368,46 @@ export const updateShop = async (shopId, updates) => {
   if (updates.trialDays !== undefined) updateData.trial_days = parseInt(updates.trialDays);
   if (updates.isActive !== undefined) updateData.is_active = updates.isActive;
 
+  let shopIdentifierToStore = null;
+
   // Handle Shop ID updates (only for Super Admin)
   if (updates.shopIdentifier !== undefined) {
-    // Validate format
     if (!validateShopIdFormat(updates.shopIdentifier)) {
       throw new Error('Invalid Shop ID format. Must be in format SHA#### (e.g., SHA1001)');
     }
 
-    // Check uniqueness
     const existingShop = await getShopByIdentifier(updates.shopIdentifier);
     if (existingShop && existingShop.id !== shopId) {
       throw new Error('Shop ID already exists');
     }
 
-    updateData.shop_identifier = updates.shopIdentifier;
-
-    // Update customer_url when shop_identifier changes
+    shopIdentifierToStore = updates.shopIdentifier;
     const productionUrl = 'https://order-manager-team.vercel.app';
     updateData.customer_url = `${productionUrl}/customer?shop=${updates.shopIdentifier}`;
   }
 
   // Regenerate Shop ID if requested
   if (updates.regenerateShopId) {
-    const newShopId = await generateShopId();
-    updateData.shop_identifier = newShopId;
-
-    // Update customer_url with new Shop ID
+    shopIdentifierToStore = await generateShopId();
     const productionUrl = 'https://order-manager-team.vercel.app';
-    updateData.customer_url = `${productionUrl}/customer?shop=${newShopId}`;
+    updateData.customer_url = `${productionUrl}/customer?shop=${shopIdentifierToStore}`;
+  }
+
+  if (shopIdentifierToStore) {
+    const { data: existingShop } = await supabase
+      .from('shop_settings')
+      .select('settings')
+      .eq('id', shopId)
+      .maybeSingle();
+
+    const existingSettings = typeof existingShop?.settings === 'object' && !Array.isArray(existingShop.settings)
+      ? existingShop.settings
+      : {};
+
+    updateData.settings = {
+      ...existingSettings,
+      shop_identifier: shopIdentifierToStore,
+    };
   }
 
   const { data, error } = await supabase
@@ -395,7 +418,10 @@ export const updateShop = async (shopId, updates) => {
     .single();
 
   if (error) throw error;
-  return data;
+  return {
+    ...data,
+    shop_identifier: getShopIdentifierFromRow(data) || data.shop_identifier || null,
+  };
 };
 
 export const deleteShop = async (shopId) => {

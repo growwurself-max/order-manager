@@ -1,4 +1,5 @@
 import { supabase } from '../config/supabase.js';
+import { getShopIdentifierFromRow } from '../utils/generateShopId.js';
 import bcrypt from 'bcryptjs';
 import { PASSWORD_SALT_ROUNDS, ORDER_STATUS, DEFAULT_RECALL_TIMER_MINUTES } from '../utils/constants.js';
 import { generateOrderNumber } from '../utils/generateOrderId.js';
@@ -164,7 +165,10 @@ export const getShopSettingsById = async (id) => {
     .single();
   
   if (error) return null;
-  return data;
+  return {
+    ...data,
+    shop_identifier: getShopIdentifierFromRow(data) || data.shop_identifier || null,
+  };
 };
 
 export const getFirstActiveShop = async () => {

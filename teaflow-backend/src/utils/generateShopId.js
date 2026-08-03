@@ -1,5 +1,35 @@
 import { supabase } from '../config/supabase.js';
 
+const getSettingsObject = (settings) => {
+  if (!settings) return {};
+  if (typeof settings === 'object' && !Array.isArray(settings)) return settings;
+  if (typeof settings === 'string') {
+    try {
+      return JSON.parse(settings);
+    } catch {
+      return {};
+    }
+  }
+  return {};
+};
+
+export function getShopIdentifierFromRow(shop) {
+  if (!shop) return null;
+
+  if (typeof shop.shop_identifier === 'string' && shop.shop_identifier.trim()) {
+    return shop.shop_identifier;
+  }
+
+  const settings = getSettingsObject(shop.settings);
+  const identifier = settings.shop_identifier || settings.shopId || settings.shop_id || settings.identifier;
+
+  if (typeof identifier === 'string' && identifier.trim()) {
+    return identifier;
+  }
+
+  return null;
+}
+
 /**
  * Generate a unique Shop ID in format: SHA#### (e.g., SHA1001, SHA1123)
  * @returns {Promise<string>} Unique shop identifier
@@ -18,19 +48,18 @@ export async function generateShopId() {
     shopId = `${prefix}${randomNum}`;
     console.log(`Attempt ${attempts + 1}: Trying shop ID ${shopId}`);
 
-    // Check if this ID already exists
     const { data, error } = await supabase
       .from('shop_settings')
-      .select('shop_identifier')
-      .eq('shop_identifier', shopId)
-      .maybeSingle();
+      .select('*')
+      .limit(1000);
 
     if (error) {
       console.error('Error checking shop ID uniqueness:', error);
       throw new Error(`Error checking shop ID uniqueness: ${error.message}`);
     }
 
-    if (!data) {
+    const existingShop = data?.find((row) => getShopIdentifierFromRow(row) === shopId);
+    if (!existingShop) {
       console.log(`Shop ID ${shopId} is unique`);
       isUnique = true;
     } else {
@@ -68,12 +97,19 @@ export async function getShopByIdentifier(shopIdentifier) {
   const { data, error } = await supabase
     .from('shop_settings')
     .select('*')
-    .eq('shop_identifier', shopIdentifier)
-    .maybeSingle();
+    .limit(1000);
 
   if (error) {
     throw new Error(`Error fetching shop by identifier: ${error.message}`);
   }
 
-  return data;
+  const matchingShop = data?.find((row) => getShopIdentifierFromRow(row) === shopIdentifier);
+  if (!matchingShop) {
+    return null;
+  }
+
+  return {
+    ...matchingShop,
+    shop_identifier: getShopIdentifierFromRow(matchingShop),
+  };
 }
