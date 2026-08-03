@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://ordermanager-backend-30x2.onrender.com';
-const FRONTEND_URL = import.meta.env.VITE_FRONTEND_URL || 'https://ordermanager.vercel.app';
+const FRONTEND_URL = import.meta.env.VITE_FRONTEND_URL || 'https://order-manager-team.vercel.app';
 
 export const roleTokenKey = (role) => `teaflow_${role}_token`;
 

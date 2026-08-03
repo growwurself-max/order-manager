@@ -244,7 +244,7 @@ export const createShop = async (shopData, origin) => {
   }
 
   // 4. Update shop settings with owner_id & customer_url using Shop ID
-  const productionUrl = 'https://order-manager-team.vercel.app';
+  const productionUrl = origin || 'https://order-manager-team.vercel.app';
   const customerUrl = `${productionUrl}/customer?shop=${shopIdentifier}`;
   console.log('Generated customer_url:', customerUrl);
   const { data: updatedShop, error: updateError } = await supabase

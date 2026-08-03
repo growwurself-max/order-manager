@@ -81,6 +81,12 @@ export default function ShopManagementPage() {
         await updateShop(editingShop.id, updates);
         showToast('Shop updated successfully', 'success');
       } else {
+        // Validate phone number for new shop
+        if (!shopForm.phoneNumber || shopForm.phoneNumber.trim() === '') {
+          showToast('Phone number is required', 'error');
+          setActionLoading(false);
+          return;
+        }
         console.log('Creating shop:', shopForm);
         await createShop(shopForm);
         showToast('Shop and owner created successfully!', 'success');
@@ -378,8 +384,8 @@ export default function ShopManagementPage() {
                 )}
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs font-medium text-slate-400 mb-1">Phone</label>
-                    <input type="text" value={shopForm.phoneNumber} onChange={(e) => setShopForm({ ...shopForm, phoneNumber: e.target.value })} className="w-full px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white focus:outline-none focus:border-indigo-500" />
+                    <label className="block text-xs font-medium text-slate-400 mb-1">Phone *</label>
+                    <input type="text" required value={shopForm.phoneNumber} onChange={(e) => setShopForm({ ...shopForm, phoneNumber: e.target.value })} className="w-full px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white focus:outline-none focus:border-indigo-500" />
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-slate-400 mb-1">Trial Days</label>

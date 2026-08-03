@@ -49,7 +49,7 @@ export default function OwnerLogin() {
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="owner@demo.com"
+              placeholder="Enter Email Address"
               className="w-full min-h-[44px] px-4 py-3 rounded-lg border border-gray-300 focus:border-orange-400 focus:outline-none"
               required
             />
@@ -61,7 +61,7 @@ export default function OwnerLogin() {
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="Owner@12345"
+              placeholder="Enter Password"
               className="w-full min-h-[44px] px-4 py-3 rounded-lg border border-gray-300 focus:border-orange-400 focus:outline-none"
               required
             />

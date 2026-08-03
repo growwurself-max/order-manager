@@ -18,9 +18,10 @@ export const createShopValidator = [
   body('ownerName').notEmpty().withMessage('Owner name is required').trim().escape(),
   body('ownerEmail').isEmail().withMessage('Valid owner email is required').normalizeEmail(),
   body('ownerPassword')
+    .notEmpty().withMessage('Owner password is required')
     .isLength({ min: 6 })
     .withMessage('Owner password must be at least 6 characters'),
-  body('phoneNumber').optional().trim().escape(),
+  body('phoneNumber').notEmpty().withMessage('Phone number is required').trim().escape(),
   body('streetAddress').optional().trim().escape(),
   body('trialDays').optional().isInt({ min: 0, max: 365 }).withMessage('Trial days must be between 0 and 365'),
   body('subscriptionPlan')

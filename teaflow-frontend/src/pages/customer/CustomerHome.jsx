@@ -7,8 +7,6 @@ const STORAGE_KEYS = {
   ACTIVE_ORDERS: 'teaflow_active_orders',
 };
 
-const PRODUCTION_URL = 'https://order-manager-team.vercel.app';
-
 export default function CustomerHome() {
   const [step, setStep] = useState('welcome');
   const [customerInfo, setCustomerInfo] = useState({ name: '', phone: '', tableNumber: 'Takeaway' });
@@ -266,7 +264,7 @@ export default function CustomerHome() {
       localStorage.setItem('shopId', manualShopId.trim());
       
       // Move to customer info step
-      setStep('welcome');
+      setStep('info');
     } catch (err) {
       setError(err.response?.data?.message || 'Invalid Shop ID. Please check and try again.');
     } finally {
@@ -547,7 +545,7 @@ export default function CustomerHome() {
                   setManualShopId(e.target.value.toUpperCase());
                   setError('');
                 }}
-                placeholder="Shop ID (e.g., SHA1001)"
+                placeholder="Enter Shop ID"
                 className="w-full px-4 py-3 rounded-lg border-2 border-gray-300 focus:border-amber-500 focus:outline-none text-center text-lg font-semibold tracking-wider"
                 maxLength={7}
               />
@@ -640,7 +638,7 @@ export default function CustomerHome() {
                   type="text"
                   value={customerInfo.name}
                   onChange={(e) => setCustomerInfo({ ...customerInfo, name: e.target.value })}
-                  placeholder="Enter your name"
+                  placeholder="Enter Your Name"
                   className="w-full min-h-[44px] px-4 py-3 sm:py-4 rounded-2xl border-2 border-gray-200 focus:border-orange-300 focus:outline-none text-base sm:text-lg"
                 />
               </div>
@@ -653,14 +651,14 @@ export default function CustomerHome() {
                   type="tel"
                   value={customerInfo.phone}
                   onChange={(e) => setCustomerInfo({ ...customerInfo, phone: e.target.value })}
-                  placeholder="+91 98765 43210"
+                  placeholder="Enter Mobile Number"
                   className="w-full min-h-[44px] px-4 py-3 sm:py-4 rounded-2xl border-2 border-gray-200 focus:border-orange-300 focus:outline-none text-base sm:text-lg"
                 />
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Table Number / Dine-in Option
+                  Table Number
                 </label>
                 <select
                   value={customerInfo.tableNumber || 'Takeaway'}

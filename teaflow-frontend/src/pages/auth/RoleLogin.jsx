@@ -10,8 +10,8 @@ const CONFIG = {
     endpoint: '/api/auth/login/owner',
     target: '/owner',
     fields: [
-      { name: 'email', label: 'Email', type: 'email', placeholder: 'owner@demo.com' },
-      { name: 'password', label: 'Password', type: 'password', placeholder: 'Owner@12345' },
+      { name: 'email', label: 'Email', type: 'email', placeholder: 'Enter Email Address' },
+      { name: 'password', label: 'Password', type: 'password', placeholder: 'Enter Password' },
     ],
   },
   worker: {
@@ -20,8 +20,8 @@ const CONFIG = {
     endpoint: '/api/auth/login/worker',
     target: '/worker',
     fields: [
-      { name: 'username', label: 'Username', type: 'text', placeholder: 'worker@demo.com' },
-      { name: 'password', label: 'Password', type: 'password', placeholder: 'Worker@12345' },
+      { name: 'username', label: 'Username', type: 'text', placeholder: 'Enter Username' },
+      { name: 'password', label: 'PIN', type: 'password', placeholder: 'Enter PIN' },
     ],
   },
 };

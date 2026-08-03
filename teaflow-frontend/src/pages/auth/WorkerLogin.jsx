@@ -5,7 +5,7 @@ import toast from 'react-hot-toast';
 
 export default function WorkerLogin() {
   const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
+  const [pin, setPin] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const navigate = useNavigate();
@@ -18,7 +18,7 @@ export default function WorkerLogin() {
     try {
       const response = await api.post('/api/auth/login/worker', {
         username: username.trim(),
-        password: password.trim(),
+        password: pin.trim(),
       });
       setRoleSession('worker', response.data.token);
       toast.success('Login successful');
@@ -49,19 +49,19 @@ export default function WorkerLogin() {
               type="text"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              placeholder="worker@demo.com"
+              placeholder="Enter Username"
               className="w-full min-h-[44px] px-4 py-3 rounded-lg border border-gray-300 focus:border-orange-400 focus:outline-none"
               required
             />
           </label>
 
           <label className="block">
-            <span className="block text-sm font-medium text-gray-700 mb-2">Password</span>
+            <span className="block text-sm font-medium text-gray-700 mb-2">PIN</span>
             <input
               type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Worker@12345"
+              value={pin}
+              onChange={(e) => setPin(e.target.value)}
+              placeholder="Enter PIN"
               className="w-full min-h-[44px] px-4 py-3 rounded-lg border border-gray-300 focus:border-orange-400 focus:outline-none"
               required
             />

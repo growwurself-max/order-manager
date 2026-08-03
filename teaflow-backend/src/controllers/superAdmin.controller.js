@@ -80,7 +80,7 @@ export const postShop = async (req, res, next) => {
   try {
     const shopData = req.body;
     // Retrieve origin of client request, fallback to production frontend URL
-    const origin = req.headers.origin || process.env.FRONTEND_URL || 'https://ordermanager.vercel.app';
+    const origin = req.headers.origin || process.env.FRONTEND_URL || 'https://order-manager-team.vercel.app';
     console.log('Creating shop with origin:', origin);
 
     const result = await createShop(shopData, origin);
