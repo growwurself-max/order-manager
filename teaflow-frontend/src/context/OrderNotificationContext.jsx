@@ -1,17 +1,29 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
+import { api } from '../services/api';
 
 const OrderNotificationContext = createContext(null);
 
 const READY_ORDERS_KEY = 'teaflow_ready_orders';
-const API_BASE = 'https://ordermanager-backend-30x2.onrender.com';
+const API_BASE = (api.defaults.baseURL || 'https://ordermanager-backend-30x2.onrender.com').replace(/\/$/, '');
+
+function createAudioContext(audioContextRef) {
+  if (!audioContextRef.current || audioContextRef.current.state === 'closed') {
+    audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  return audioContextRef.current;
+}
+
+function vibrateDevice() {
+  if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+    navigator.vibrate([500, 300, 500, 300, 500]);
+  }
+}
 
 function playLoudAlert(audioContextRef) {
   try {
-    if (!audioContextRef.current || audioContextRef.current.state === 'closed') {
-      audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
-    }
-    const ctx = audioContextRef.current;
-    if (ctx.state === 'suspended') ctx.resume();
+    const ctx = createAudioContext(audioContextRef);
+    if (!ctx) return;
+    ctx.resume().catch(() => {});
 
     const masterGain = ctx.createGain();
     masterGain.gain.setValueAtTime(0.5, ctx.currentTime);
@@ -64,6 +76,39 @@ export function OrderNotificationProvider({ children }) {
   const notifiedOrderIds = useRef(new Set());
   const customerPhoneRef = useRef(null);
 
+  useEffect(() => {
+    const unlockAudio = () => {
+      const ctx = createAudioContext(audioContextRef);
+      if (ctx && ctx.state === 'suspended') {
+        ctx.resume().catch(() => {});
+      }
+    };
+
+    const handleRecallEvent = (event) => {
+      const payload = event.detail || {};
+      if (!payload.orderId && !payload.orderNumber) return;
+      showNotification({ type: payload.type || 'order_recall', order: payload.order || { id: payload.orderId, orderNumber: payload.orderNumber }, orderId: payload.orderId, orderNumber: payload.orderNumber });
+    };
+
+    const handleStorageEvent = (event) => {
+      if (event.key !== 'teaflow_recall_alert') return;
+      try {
+        const payload = JSON.parse(event.newValue || '{}');
+        handleRecallEvent({ detail: payload });
+      } catch (e) {}
+    };
+
+    const events = ['pointerdown', 'touchstart', 'keydown'];
+    events.forEach((eventName) => window.addEventListener(eventName, unlockAudio, { once: true }));
+    window.addEventListener('order-recall', handleRecallEvent);
+    window.addEventListener('storage', handleStorageEvent);
+    return () => {
+      events.forEach((eventName) => window.removeEventListener(eventName, unlockAudio));
+      window.removeEventListener('order-recall', handleRecallEvent);
+      window.removeEventListener('storage', handleStorageEvent);
+    };
+  }, [showNotification]);
+
   // Restore ready orders from localStorage on mount
   useEffect(() => {
     try {
@@ -80,6 +125,36 @@ export function OrderNotificationProvider({ children }) {
     localStorage.setItem(READY_ORDERS_KEY, JSON.stringify(readyOrders));
   }, [readyOrders]);
 
+  const showNotification = useCallback((payload) => {
+    const type = payload.type || 'order_recall';
+    const order = payload.order || {};
+    const orderId = order.id || payload.orderId || order._id || order.orderId;
+    const orderNumber = order.orderNumber || payload.orderNumber || order.order_number;
+    const notificationKey = `${type}:${orderId || orderNumber || 'generic'}`;
+
+    if (!orderId && !orderNumber) return;
+    if (notifiedOrderIds.current.has(notificationKey)) return;
+
+    notifiedOrderIds.current.add(notificationKey);
+
+    if (orderId) {
+      setReadyOrders(function(prev) {
+        const next = {};
+        for (const k in prev) next[k] = prev[k];
+        next[orderId] = { ...order, id: orderId, orderNumber };
+        return next;
+      });
+    }
+
+    setShowPopup(true);
+    setPopupOrder({ ...order, id: orderId, orderNumber });
+
+    if (!isMuted) {
+      playLoudAlert(audioContextRef);
+    }
+    vibrateDevice();
+  }, [isMuted]);
+
   const connectToOrderEvents = useCallback((phone) => {
     if (!phone) return;
     if (eventSourceRef.current) {
@@ -88,23 +163,18 @@ export function OrderNotificationProvider({ children }) {
     }
     customerPhoneRef.current = phone;
 
-    // Check localStorage for pending ready orders
     try {
       const saved = localStorage.getItem(READY_ORDERS_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
         Object.values(parsed).forEach((order) => {
-          if (order && order.customer && order.customer.phone === phone && !notifiedOrderIds.current.has(order.id)) {
-            notifiedOrderIds.current.add(order.id);
-            setShowPopup(true);
-            setPopupOrder(order);
-            if (!isMuted) playLoudAlert(audioContextRef);
+          if (order && order.customer && order.customer.phone === phone) {
+            showNotification({ type: 'order_ready', order });
           }
         });
       }
     } catch (e) {}
 
-    // Connect SSE
     try {
       const es = new EventSource(API_BASE + '/events/order-status/' + encodeURIComponent(phone));
       eventSourceRef.current = es;
@@ -113,22 +183,9 @@ export function OrderNotificationProvider({ children }) {
         try {
           const data = JSON.parse(event.data);
           if (data.type === 'order_ready') {
-            const order = data.order;
-            if (notifiedOrderIds.current.has(order.id)) return;
-            notifiedOrderIds.current.add(order.id);
-
-            setReadyOrders(function(prev) {
-              const next = {};
-              for (const k in prev) next[k] = prev[k];
-              next[order.id] = order;
-              return next;
-            });
-
-            setShowPopup(true);
-            setPopupOrder(order);
-            if (!isMuted) playLoudAlert(audioContextRef);
+            showNotification({ type: 'order_ready', order: data.order });
           } else if (data.type === 'order_completed') {
-            const orderId = data.order.id;
+            const orderId = data.order?.id;
             setReadyOrders(function(prev) {
               const next = {};
               for (const k in prev) {
@@ -140,6 +197,8 @@ export function OrderNotificationProvider({ children }) {
               setShowPopup(false);
               setPopupOrder(null);
             }
+            notifiedOrderIds.current.delete(`order_ready:${orderId}`);
+            notifiedOrderIds.current.delete(`order_recall:${orderId}`);
           }
         } catch (e) {}
       };
@@ -152,7 +211,7 @@ export function OrderNotificationProvider({ children }) {
     } catch (e) {
       console.warn('SSE connection failed:', e.message);
     }
-  }, [isMuted]);
+  }, [popupOrder, showNotification]);
 
   const disconnectFromOrderEvents = useCallback(function() {
     if (eventSourceRef.current) {
@@ -165,9 +224,6 @@ export function OrderNotificationProvider({ children }) {
   const dismissPopup = useCallback(function() {
     setShowPopup(false);
     setPopupOrder(null);
-    if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
-      audioContextRef.current.close().catch(function() {});
-    }
   }, []);
 
   const toggleMute = useCallback(function() {

@@ -456,8 +456,8 @@ export default function OwnerHome() {
         message: '🔔 Your order is ready!\nPlease collect it from the counter.',
       };
       if (payload.orderNumber || payload.orderId) {
-        window.dispatchEvent(new CustomEvent('order-recall', { detail: payload }));
-        localStorage.setItem('teaflow_recall_alert', JSON.stringify(payload));
+        window.dispatchEvent(new CustomEvent('order-recall', { detail: { ...payload, type: 'order_recall' } }));
+        localStorage.setItem('teaflow_recall_alert', JSON.stringify({ ...payload, type: 'order_recall' }));
       }
       showToast('Customer notified successfully', 'success');
       fetchOrders();

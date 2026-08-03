@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { api } from '../../services/api';
+import { useOrderNotification } from '../../context/OrderNotificationContext';
 
 const STORAGE_KEYS = {
   CUSTOMER_INFO: 'teaflow_customer',
@@ -36,23 +37,20 @@ export default function CustomerHome() {
   const [recallBanner, setRecallBanner] = useState(null);
   const pollingRef = useRef(null);
   const prevStatusMapRef = useRef({});
+  const { connectToOrderEvents, disconnectFromOrderEvents } = useOrderNotification();
 
-  const playNotificationSound = useCallback(() => {
-    try {
-      const ctx = new (window.AudioContext || window.webkitAudioContext)();
-      const oscillator = ctx.createOscillator();
-      const gainNode = ctx.createGain();
-      oscillator.connect(gainNode);
-      gainNode.connect(ctx.destination);
-      oscillator.frequency.setValueAtTime(600, ctx.currentTime);
-      oscillator.frequency.setValueAtTime(800, ctx.currentTime + 0.1);
-      oscillator.frequency.setValueAtTime(1000, ctx.currentTime + 0.2);
-      gainNode.gain.setValueAtTime(0.4, ctx.currentTime);
-      gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.6);
-      oscillator.start(ctx.currentTime);
-      oscillator.stop(ctx.currentTime + 0.6);
-    } catch (e) {
-      // Audio not supported, silent fallback
+  const notifyCustomerOfReadyOrder = useCallback((order, type = 'order_ready') => {
+    const payload = {
+      type,
+      orderId: order?._id || order?.orderId || order?.id,
+      orderNumber: order?.orderNumber || order?.order_number,
+      message: '🔔 Your order is ready!\nPlease collect it from the counter.',
+      order,
+    };
+
+    if (payload.orderId || payload.orderNumber) {
+      window.dispatchEvent(new CustomEvent('order-recall', { detail: payload }));
+      localStorage.setItem('teaflow_recall_alert', JSON.stringify(payload));
     }
   }, []);
 
@@ -101,6 +99,12 @@ export default function CustomerHome() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!customerInfo.phone) return;
+    connectToOrderEvents(customerInfo.phone);
+    return () => disconnectFromOrderEvents();
+  }, [customerInfo.phone, connectToOrderEvents, disconnectFromOrderEvents]);
+
   // Start polling when we have tracking orders
   useEffect(() => {
     if (step === 'track' && trackingOrders.length > 0) {
@@ -136,29 +140,19 @@ export default function CustomerHome() {
 
   useEffect(() => {
     const handleRecallEvent = (event) => {
-      const payload = event.detail || event.newValue ? JSON.parse(event.newValue || '{}') : {};
+      const payload = event.detail || {};
       const { orderId, orderNumber, message } = payload;
       if (!orderId && !orderNumber) return;
 
       const bannerMessage = message || '🔔 Your order is ready!\nPlease collect it from the counter.';
       setRecallBanner({ orderId, orderNumber, message: bannerMessage });
-      playNotificationSound();
-
-      if ('vibrate' in navigator) {
-        navigator.vibrate([300, 200, 300]);
-      }
-
-      if ('Notification' in window && Notification.permission === 'granted') {
-        new Notification('Order Ready', {
-          body: 'Please collect your order from the counter.',
-          icon: '/favicon.ico',
-        });
-      }
     };
 
     const handleStorageEvent = (event) => {
       if (event.key !== 'teaflow_recall_alert') return;
-      handleRecallEvent({ detail: JSON.parse(event.newValue || '{}') });
+      try {
+        handleRecallEvent({ detail: JSON.parse(event.newValue || '{}') });
+      } catch (e) {}
     };
 
     window.addEventListener('order-recall', handleRecallEvent);
@@ -167,7 +161,7 @@ export default function CustomerHome() {
       window.removeEventListener('order-recall', handleRecallEvent);
       window.removeEventListener('storage', handleStorageEvent);
     };
-  }, [playNotificationSound]);
+  }, []);
 
   useEffect(() => {
     if (!recallBanner) return;
@@ -209,15 +203,8 @@ export default function CustomerHome() {
         const orderKey = data._id || data.orderId;
         const prevStatus = prevStatusMapRef.current[orderKey];
 
-        // Play sound when order becomes ready
         if (data.status === 'ready' && prevStatus && prevStatus !== 'ready') {
-          playNotificationSound();
-          if ('Notification' in window && Notification.permission === 'granted') {
-            new Notification('Order Ready', {
-              body: `Your order #${data.orderNumber} is ready for pickup!`,
-              icon: '/favicon.ico'
-            });
-          }
+          notifyCustomerOfReadyOrder(data);
         }
 
         if (prevStatus !== data.status) {
