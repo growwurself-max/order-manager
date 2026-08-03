@@ -9,6 +9,7 @@ import {
   getFirstActiveShop,
 } from '../services/supabase.service.js';
 import { menuItemToDB, toSnakeCase } from '../utils/mapping.js';
+import { getShopByIdentifier, validateShopIdFormat } from '../utils/generateShopId.js';
 
 export const createMenu = async (req, res, next) => {
   try {
@@ -44,6 +45,18 @@ export const getMenu = async (req, res, next) => {
           });
         }
         shopId = shop.id;
+      } else {
+        // Check if shopId is a Shop ID (SHA####) or UUID
+        if (validateShopIdFormat(shopId)) {
+          // It's a Shop ID, convert to UUID
+          const shop = await getShopByIdentifier(shopId);
+          if (!shop) {
+            return res.status(HTTP_STATUS.NOT_FOUND).json({
+              message: 'Shop not found with this Shop ID',
+            });
+          }
+          shopId = shop.id;
+        }
       }
     }
     

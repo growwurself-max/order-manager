@@ -3,6 +3,7 @@ import { supabase } from '../config/supabase.js';
 import { generateToken } from '../middleware/auth.js';
 import { PASSWORD_SALT_ROUNDS } from '../utils/constants.js';
 import { AuthError, NotFoundError } from '../utils/AppError.js';
+import { generateShopId, validateShopIdFormat, getShopByIdentifier } from '../utils/generateShopId.js';
 
 // ===========================
 // Auth
@@ -181,12 +182,17 @@ export const getAllShops = async (filters = {}) => {
 };
 
 export const createShop = async (shopData, origin) => {
-  // 1. Insert shop settings (without owner_id first)
+  // 1. Generate unique Shop ID
+  const shopIdentifier = await generateShopId();
+  console.log('Generated Shop ID:', shopIdentifier);
+
+  // 2. Insert shop settings (without owner_id first)
   const { data: shop, error: shopError } = await supabase
     .from('shop_settings')
     .insert([
       {
         shop_name: shopData.shopName,
+        shop_identifier: shopIdentifier,
         address: { street: shopData.streetAddress || '' },
         contact: {
           phone: shopData.phoneNumber,
@@ -213,7 +219,7 @@ export const createShop = async (shopData, origin) => {
 
   if (shopError) throw shopError;
 
-  // 2. Hash owner password & Insert owner
+  // 3. Hash owner password & Insert owner
   const hashedPassword = await bcrypt.hash(shopData.ownerPassword, PASSWORD_SALT_ROUNDS);
   const { data: owner, error: ownerError } = await supabase
     .from('owners')
@@ -237,8 +243,9 @@ export const createShop = async (shopData, origin) => {
     throw ownerError;
   }
 
-  // 3. Update shop settings with owner_id & customer_url
-  const customerUrl = `${origin}/customer?shop=${shop.id}`;
+  // 4. Update shop settings with owner_id & customer_url using Shop ID
+  const productionUrl = 'https://order-manager-team.vercel.app';
+  const customerUrl = `${productionUrl}/customer?shop=${shopIdentifier}`;
   console.log('Generated customer_url:', customerUrl);
   const { data: updatedShop, error: updateError } = await supabase
     .from('shop_settings')
@@ -272,6 +279,36 @@ export const updateShop = async (shopId, updates) => {
   if (updates.subscriptionStatus !== undefined) updateData.subscription_status = updates.subscriptionStatus;
   if (updates.trialDays !== undefined) updateData.trial_days = parseInt(updates.trialDays);
   if (updates.isActive !== undefined) updateData.is_active = updates.isActive;
+
+  // Handle Shop ID updates (only for Super Admin)
+  if (updates.shopIdentifier !== undefined) {
+    // Validate format
+    if (!validateShopIdFormat(updates.shopIdentifier)) {
+      throw new Error('Invalid Shop ID format. Must be in format SHA#### (e.g., SHA1001)');
+    }
+
+    // Check uniqueness
+    const existingShop = await getShopByIdentifier(updates.shopIdentifier);
+    if (existingShop && existingShop.id !== shopId) {
+      throw new Error('Shop ID already exists');
+    }
+
+    updateData.shop_identifier = updates.shopIdentifier;
+
+    // Update customer_url when shop_identifier changes
+    const productionUrl = 'https://order-manager-team.vercel.app';
+    updateData.customer_url = `${productionUrl}/customer?shop=${updates.shopIdentifier}`;
+  }
+
+  // Regenerate Shop ID if requested
+  if (updates.regenerateShopId) {
+    const newShopId = await generateShopId();
+    updateData.shop_identifier = newShopId;
+
+    // Update customer_url with new Shop ID
+    const productionUrl = 'https://order-manager-team.vercel.app';
+    updateData.customer_url = `${productionUrl}/customer?shop=${newShopId}`;
+  }
 
   const { data, error } = await supabase
     .from('shop_settings')

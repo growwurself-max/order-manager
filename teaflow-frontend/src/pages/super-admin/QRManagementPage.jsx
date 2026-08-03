@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getShops } from '../../services/superAdminApi';
 import { useToast } from '../../context/ToastContext';
-import { getFrontendUrl } from '../../services/api';
+
+const PRODUCTION_URL = 'https://order-manager-team.vercel.app';
 
 export default function QRManagementPage() {
   const { showToast } = useToast();
@@ -31,6 +32,14 @@ export default function QRManagementPage() {
   const filteredShops = shops.filter((s) =>
     s.shop_name?.toLowerCase().includes(search.toLowerCase())
   );
+
+  const getShopUrl = (shop) => {
+    // Use shop_identifier if available, otherwise fall back to customer_url
+    if (shop.shop_identifier) {
+      return `${PRODUCTION_URL}/customer?shop=${shop.shop_identifier}`;
+    }
+    return shop.customer_url || `${PRODUCTION_URL}/customer?shop=${shop.id}`;
+  };
 
   const downloadQR = async (url, shopName, format) => {
     try {
@@ -102,13 +111,14 @@ export default function QRManagementPage() {
               >
                 <div className="bg-white rounded-xl p-3 inline-block mb-4">
                   <img
-                    src={'https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=' + encodeURIComponent(shop.customer_url || (getFrontendUrl() + '/customer?shop=' + (shop.id || shop._id)))}
+                    src={'https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=' + encodeURIComponent(getShopUrl(shop))}
                     alt={shop.shop_name + ' QR'}
                     className="w-32 h-32"
                   />
                 </div>
                 <h3 className="text-sm font-bold text-white mb-1">{shop.shop_name}</h3>
-                <p className="text-xs text-slate-400 mb-4 truncate">{shop.customer_url || 'No URL'}</p>
+                <p className="text-xs text-slate-400 mb-1">Shop ID: {shop.shop_identifier || 'N/A'}</p>
+                <p className="text-xs text-slate-400 mb-4 truncate">{getShopUrl(shop)}</p>
                 <div className="space-y-2">
                   <button
                     onClick={() => { setQrShop(shop); setShowModal(true); }}
@@ -118,13 +128,13 @@ export default function QRManagementPage() {
                   </button>
                   <div className="flex gap-2">
                     <button
-                      onClick={() => downloadQR(getFrontendUrl() + '/customer?shop=' + (shop.id || shop._id), shop.shop_name, 'png')}
+                      onClick={() => downloadQR(getShopUrl(shop), shop.shop_name, 'png')}
                       className="flex-1 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 py-2 rounded-lg text-xs font-medium transition"
                     >
                       PNG
                     </button>
                     <button
-                      onClick={() => printPDF(getFrontendUrl() + '/customer?shop=' + (shop.id || shop._id), shop.shop_name)}
+                      onClick={() => printPDF(getShopUrl(shop), shop.shop_name)}
                       className="flex-1 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 py-2 rounded-lg text-xs font-medium transition"
                     >
                       PDF
@@ -152,22 +162,23 @@ export default function QRManagementPage() {
               </div>
               <div className="bg-white rounded-2xl p-6 mb-6 flex justify-center">
                 <img
-                  src={'https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=' + encodeURIComponent(getFrontendUrl() + '/customer?shop=' + (qrShop.id || qrShop._id))}
+                  src={'https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=' + encodeURIComponent(getShopUrl(qrShop))}
                   alt={qrShop.shop_name + ' QR'}
                   className="w-48 h-48"
                 />
               </div>
               <p className="text-sm font-semibold text-white mb-1">{qrShop.shop_name}</p>
-              <p className="text-xs text-slate-400 mb-6 break-all">{getFrontendUrl() + '/customer?shop=' + (qrShop.id || qrShop._id)}</p>
+              <p className="text-xs text-slate-400 mb-1">Shop ID: {qrShop.shop_identifier || 'N/A'}</p>
+              <p className="text-xs text-slate-400 mb-6 break-all">{getShopUrl(qrShop)}</p>
               <div className="space-y-3">
                 <button
-                  onClick={() => downloadQR(getFrontendUrl() + '/customer?shop=' + (qrShop.id || qrShop._id), qrShop.shop_name, 'png')}
+                  onClick={() => downloadQR(getShopUrl(qrShop), qrShop.shop_name, 'png')}
                   className="w-full bg-gradient-to-r from-indigo-500 to-purple-600 text-white py-3 rounded-xl font-semibold transition"
                 >
                   Download PNG
                 </button>
                 <button
-                  onClick={() => printPDF(getFrontendUrl() + '/customer?shop=' + (qrShop.id || qrShop._id), qrShop.shop_name)}
+                  onClick={() => printPDF(getShopUrl(qrShop), qrShop.shop_name)}
                   className="w-full bg-white/5 hover:bg-white/10 text-white py-3 rounded-xl font-semibold transition"
                 >
                   Print / Download PDF

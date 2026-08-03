@@ -64,6 +64,7 @@ router.get('/shops/:shopId', shopIdParamValidator, getShopStatsById);
 router.put('/shops/:shopId', shopIdParamValidator, updateShopValidator, putShop);
 router.delete('/shops/:shopId', shopIdParamValidator, deleteShop);
 router.post('/shops/:shopId/reset-credentials', shopIdParamValidator, resetPasswordValidator, postResetShopCredentials);
+router.put('/shops/:shopId/shop-id', shopIdParamValidator, putShop); // Update Shop ID
 
 // Subscriptions
 router.get('/subscriptions/overview', getSubscriptionOverviewData);

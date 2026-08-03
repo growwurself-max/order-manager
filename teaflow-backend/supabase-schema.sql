@@ -171,6 +171,10 @@ ALTER TABLE shop_settings ADD COLUMN IF NOT EXISTS subscription_status TEXT DEFA
 ALTER TABLE shop_settings ADD COLUMN IF NOT EXISTS trial_days INTEGER DEFAULT 30;
 ALTER TABLE shop_settings ADD COLUMN IF NOT EXISTS subscription_expiry TIMESTAMPTZ;
 ALTER TABLE shop_settings ADD COLUMN IF NOT EXISTS customer_url TEXT;
+ALTER TABLE shop_settings ADD COLUMN IF NOT EXISTS shop_identifier TEXT UNIQUE;
+
+-- Create index for shop_identifier for faster lookups
+CREATE INDEX IF NOT EXISTS idx_shop_settings_shop_identifier ON shop_settings(shop_identifier);
 
 -- ===========================
 -- Alter: owners (new columns)

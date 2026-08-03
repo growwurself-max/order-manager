@@ -19,7 +19,10 @@ const emptyForm = {
   streetAddress: '',
   trialDays: '30',
   subscriptionPlan: 'free',
+  shopIdentifier: '',
 };
+
+const PRODUCTION_URL = 'https://order-manager-team.vercel.app';
 
 export default function ShopManagementPage() {
   const { showToast } = useToast();
@@ -39,6 +42,9 @@ export default function ShopManagementPage() {
   const [showResetModal, setShowResetModal] = useState(false);
   const [resetTarget, setResetTarget] = useState(null);
   const [newPassword, setNewPassword] = useState('');
+  const [showShopIdModal, setShowShopIdModal] = useState(false);
+  const [shopIdTarget, setShopIdTarget] = useState(null);
+  const [shopIdForm, setShopIdForm] = useState({ shopIdentifier: '', regenerate: false });
 
   const fetchShops = async () => {
     setLoading(true);
@@ -171,6 +177,49 @@ export default function ShopManagementPage() {
     }
   };
 
+  const handleEditShopId = (shop) => {
+    setShopIdTarget(shop);
+    setShopIdForm({ shopIdentifier: shop.shop_identifier || '', regenerate: false });
+    setShowShopIdModal(true);
+  };
+
+  const handleSaveShopId = async (e) => {
+    e.preventDefault();
+    setActionLoading(true);
+    try {
+      if (shopIdForm.regenerate) {
+        if (!window.confirm('Are you sure you want to regenerate the Shop ID? This will update the QR code and customer access link.')) {
+          setActionLoading(false);
+          return;
+        }
+        await updateShop(shopIdTarget.id, { regenerateShopId: true });
+        showToast('Shop ID regenerated successfully', 'success');
+      } else {
+        if (!/^SHA\d{4}$/.test(shopIdForm.shopIdentifier)) {
+          showToast('Invalid Shop ID format. Must be SHA#### (e.g., SHA1001)', 'error');
+          setActionLoading(false);
+          return;
+        }
+        await updateShop(shopIdTarget.id, { shopIdentifier: shopIdForm.shopIdentifier });
+        showToast('Shop ID updated successfully', 'success');
+      }
+      setShowShopIdModal(false);
+      setShopIdTarget(null);
+      setShopIdForm({ shopIdentifier: '', regenerate: false });
+      fetchShops();
+    } catch (err) {
+      showToast(err.response?.data?.message || 'Failed to update Shop ID', 'error');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const copyShopLink = (shop) => {
+    const link = shop.customer_url || `${PRODUCTION_URL}/customer?shop=${shop.shop_identifier || shop.id}`;
+    navigator.clipboard.writeText(link);
+    showToast('Shop link copied to clipboard', 'success');
+  };
+
   return (
     <div className="space-y-6">
       {/* Filters */}
@@ -234,6 +283,7 @@ export default function ShopManagementPage() {
               <thead>
                 <tr className="text-xs text-slate-400 uppercase border-b border-white/10">
                   <th className="px-6 py-4">Shop</th>
+                  <th className="px-6 py-4">Shop ID</th>
                   <th className="px-6 py-4">Owner</th>
                   <th className="px-6 py-4">Subscription</th>
                   <th className="px-6 py-4 text-right">Actions</th>
@@ -252,6 +302,9 @@ export default function ShopManagementPage() {
                         <p className="text-xs text-slate-400">{shop.address?.street || 'No address'}</p>
                       </td>
                       <td className="px-6 py-4">
+                        <p className="text-sm font-mono text-indigo-400">{shop.shop_identifier || 'N/A'}</p>
+                      </td>
+                      <td className="px-6 py-4">
                         <p className="text-sm text-white">{shop.owner?.name || 'No owner'}</p>
                         <p className="text-xs text-slate-400">{shop.owner?.email || shop.contact?.email}</p>
                       </td>
@@ -268,6 +321,8 @@ export default function ShopManagementPage() {
                       </td>
                       <td className="px-6 py-4 text-right">
                         <div className="flex flex-wrap gap-1.5 justify-end">
+                          <button onClick={() => copyShopLink(shop)} className="text-xs bg-white/5 hover:bg-white/10 text-slate-300 px-3 py-1.5 rounded-lg transition">Copy Link</button>
+                          <button onClick={() => handleEditShopId(shop)} className="text-xs bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 px-3 py-1.5 rounded-lg transition">Shop ID</button>
                           <button onClick={() => handleViewStats(shop.id)} className="text-xs bg-white/5 hover:bg-white/10 text-slate-300 px-3 py-1.5 rounded-lg transition">Stats</button>
                           <button onClick={() => handleEditShop(shop)} className="text-xs bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 px-3 py-1.5 rounded-lg transition">Edit</button>
                           <button onClick={() => { setResetTarget(shop); setShowResetModal(true); }} className="text-xs bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 px-3 py-1.5 rounded-lg transition">Reset</button>
@@ -425,6 +480,76 @@ export default function ShopManagementPage() {
                     {actionLoading ? 'Resetting...' : 'Reset Password'}
                   </button>
                   <button type="button" onClick={() => { setShowResetModal(false); setResetTarget(null); setNewPassword(''); }} className="flex-1 bg-white/5 hover:bg-white/10 text-white py-3 rounded-xl font-semibold">Cancel</button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Shop ID Management Modal */}
+      <AnimatePresence>
+        {showShopIdModal && shopIdTarget && (
+          <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-slate-900 border border-white/10 rounded-2xl max-w-md w-full p-6 shadow-2xl"
+            >
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-xl font-bold text-white">Manage Shop ID</h3>
+                <button onClick={() => { setShowShopIdModal(false); setShopIdTarget(null); setShopIdForm({ shopIdentifier: '', regenerate: false }); }} className="text-slate-400 hover:text-white text-xl">✕</button>
+              </div>
+              
+              <div className="bg-white/5 rounded-xl p-4 mb-6">
+                <p className="text-sm text-slate-400 mb-1">Current Shop ID</p>
+                <p className="text-2xl font-mono font-bold text-indigo-400">{shopIdTarget.shop_identifier || 'Not assigned'}</p>
+                <p className="text-xs text-slate-500 mt-2">{shopIdTarget.shop_name}</p>
+              </div>
+
+              <form onSubmit={handleSaveShopId} className="space-y-4">
+                <div className="flex items-center gap-3 mb-4">
+                  <input
+                    type="checkbox"
+                    id="regenerate"
+                    checked={shopIdForm.regenerate}
+                    onChange={(e) => {
+                      setShopIdForm({ ...shopIdForm, regenerate: e.target.checked, shopIdentifier: '' });
+                    }}
+                    className="w-4 h-4 rounded border-white/10 bg-white/5 text-indigo-500 focus:ring-indigo-500"
+                  />
+                  <label htmlFor="regenerate" className="text-sm text-white">Generate new Shop ID</label>
+                </div>
+
+                {!shopIdForm.regenerate && (
+                  <div>
+                    <label className="block text-xs font-medium text-slate-400 mb-1">New Shop ID</label>
+                    <input
+                      type="text"
+                      value={shopIdForm.shopIdentifier}
+                      onChange={(e) => setShopIdForm({ ...shopIdForm, shopIdentifier: e.target.value.toUpperCase() })}
+                      placeholder="SHA#### (e.g., SHA1001)"
+                      maxLength={7}
+                      className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:outline-none focus:border-indigo-500 font-mono uppercase"
+                    />
+                    <p className="text-xs text-slate-500 mt-1">Format: SHA followed by 4 digits</p>
+                  </div>
+                )}
+
+                {shopIdForm.regenerate && (
+                  <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-3">
+                    <p className="text-sm text-amber-400">
+                      ⚠️ A new random Shop ID will be generated. The QR code and customer access link will be updated automatically.
+                    </p>
+                  </div>
+                )}
+
+                <div className="flex gap-3 pt-4">
+                  <button type="submit" disabled={actionLoading} className="flex-1 bg-gradient-to-r from-indigo-500 to-purple-600 text-white py-3 rounded-xl font-semibold disabled:opacity-50">
+                    {actionLoading ? 'Saving...' : shopIdForm.regenerate ? 'Generate New ID' : 'Update Shop ID'}
+                  </button>
+                  <button type="button" onClick={() => { setShowShopIdModal(false); setShopIdTarget(null); setShopIdForm({ shopIdentifier: '', regenerate: false }); }} className="flex-1 bg-white/5 hover:bg-white/10 text-white py-3 rounded-xl font-semibold">Cancel</button>
                 </div>
               </form>
             </motion.div>

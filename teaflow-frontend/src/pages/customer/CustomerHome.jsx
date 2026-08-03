@@ -7,6 +7,8 @@ const STORAGE_KEYS = {
   ACTIVE_ORDERS: 'teaflow_active_orders',
 };
 
+const PRODUCTION_URL = 'https://order-manager-team.vercel.app';
+
 export default function CustomerHome() {
   const [step, setStep] = useState('welcome');
   const [customerInfo, setCustomerInfo] = useState({ name: '', phone: '', tableNumber: 'Takeaway' });
@@ -22,6 +24,9 @@ export default function CustomerHome() {
     console.log('Shop ID from localStorage:', storedShopId);
     return storedShopId || '';
   });
+  const [manualShopId, setManualShopId] = useState('');
+  const [shopValidating, setShopValidating] = useState(false);
+  const [shopName, setShopName] = useState('');
   const [menuItems, setMenuItems] = useState([]);
   const [cart, setCart] = useState([]);
   const [orderResult, setOrderResult] = useState(null);
@@ -236,6 +241,39 @@ export default function CustomerHome() {
     }
   };
 
+  const handleManualShopIdEntry = async (e) => {
+    e.preventDefault();
+    if (!manualShopId.trim()) {
+      setError('Please enter a Shop ID');
+      return;
+    }
+    
+    // Validate Shop ID format (SHA####)
+    if (!/^SHA\d{4}$/.test(manualShopId.trim())) {
+      setError('Invalid Shop ID format. Please enter a valid Shop ID (e.g., SHA1001)');
+      return;
+    }
+
+    setShopValidating(true);
+    setError('');
+    try {
+      const response = await api.get(`/api/shop/validate/${manualShopId.trim()}`);
+      const data = response.data.data;
+      
+      // Store the validated shop ID
+      setShopId(manualShopId.trim());
+      setShopName(data.shopName);
+      localStorage.setItem('shopId', manualShopId.trim());
+      
+      // Move to customer info step
+      setStep('welcome');
+    } catch (err) {
+      setError(err.response?.data?.message || 'Invalid Shop ID. Please check and try again.');
+    } finally {
+      setShopValidating(false);
+    }
+  };
+
   const addToCart = (item) => {
     setCart(prev => {
       const totalQuantity = prev.reduce((sum, i) => sum + i.quantity, 0);
@@ -431,17 +469,120 @@ export default function CustomerHome() {
             >
               Handcrafted beverages made with love. Order now and enjoy!
             </motion.p>
-            <motion.button
+            <div className="space-y-4 w-full max-w-xs">
+              <motion.button
+                initial={{ y: 20, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                transition={{ delay: 0.5 }}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => setStep('info')}
+                className="w-full min-h-[44px] bg-gradient-to-r from-amber-500 to-orange-500 text-white px-8 sm:px-12 py-4 rounded-full text-base sm:text-lg font-semibold shadow-lg hover:shadow-xl transition-all"
+              >
+                Start Ordering
+              </motion.button>
+              {!shopId && (
+                <motion.button
+                  initial={{ y: 20, opacity: 0 }}
+                  animate={{ y: 0, opacity: 1 }}
+                  transition={{ delay: 0.6 }}
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => setStep('shopIdEntry')}
+                  className="w-full min-h-[44px] bg-white text-gray-700 px-8 sm:px-12 py-4 rounded-full text-base sm:text-lg font-semibold shadow-lg hover:shadow-xl transition-all border-2 border-gray-200"
+                >
+                  Enter Shop ID
+                </motion.button>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence mode="wait">
+        {step === 'shopIdEntry' && (
+          <motion.div
+            key="shopIdEntry"
+            variants={containerVariants}
+            initial="hidden"
+            animate="visible"
+            exit="exit"
+            className="min-h-screen flex flex-col items-center justify-center px-6 py-8"
+          >
+            <motion.div
+              initial={{ scale: 0.8, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ delay: 0.2, type: 'spring', stiffness: 200, damping: 20 }}
+              className="text-5xl sm:text-6xl mb-4 sm:mb-6"
+            >
+              🏪
+            </motion.div>
+            <motion.h2
+              initial={{ y: 20, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ delay: 0.3 }}
+              className="text-2xl sm:text-3xl font-bold text-gray-900 text-center mb-3 sm:mb-4"
+            >
+              Enter Shop ID
+            </motion.h2>
+            <motion.p
+              initial={{ y: 20, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ delay: 0.4 }}
+              className="text-gray-600 text-center text-base sm:text-lg mb-8 sm:mb-12 max-w-sm px-4"
+            >
+              Enter the Shop ID provided by the restaurant (e.g., SHA1001)
+            </motion.p>
+            <motion.form
               initial={{ y: 20, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               transition={{ delay: 0.5 }}
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={() => setStep('info')}
-              className="min-h-[44px] bg-gradient-to-r from-amber-500 to-orange-500 text-white px-8 sm:px-12 py-4 rounded-full text-base sm:text-lg font-semibold shadow-lg hover:shadow-xl transition-all"
+              onSubmit={handleManualShopIdEntry}
+              className="w-full max-w-xs space-y-4"
             >
-              Start Ordering
-            </motion.button>
+              <input
+                type="text"
+                value={manualShopId}
+                onChange={(e) => {
+                  setManualShopId(e.target.value.toUpperCase());
+                  setError('');
+                }}
+                placeholder="Shop ID (e.g., SHA1001)"
+                className="w-full px-4 py-3 rounded-lg border-2 border-gray-300 focus:border-amber-500 focus:outline-none text-center text-lg font-semibold tracking-wider"
+                maxLength={7}
+              />
+              {error && (
+                <motion.p
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="text-red-500 text-sm text-center"
+                >
+                  {error}
+                </motion.p>
+              )}
+              <motion.button
+                type="submit"
+                disabled={shopValidating}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                className="w-full min-h-[44px] bg-gradient-to-r from-amber-500 to-orange-500 text-white px-8 sm:px-12 py-4 rounded-full text-base sm:text-lg font-semibold shadow-lg hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {shopValidating ? 'Validating...' : 'Continue'}
+              </motion.button>
+              <motion.button
+                type="button"
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => {
+                  setStep('welcome');
+                  setManualShopId('');
+                  setError('');
+                }}
+                className="w-full min-h-[44px] bg-white text-gray-700 px-8 sm:px-12 py-4 rounded-full text-base sm:text-lg font-semibold shadow-lg hover:shadow-xl transition-all border-2 border-gray-200"
+              >
+                Back
+              </motion.button>
+            </motion.form>
           </motion.div>
         )}
       </AnimatePresence>
@@ -479,6 +620,18 @@ export default function CustomerHome() {
               onSubmit={handleContinue}
               className="space-y-4 sm:space-y-6"
             >
+              {shopName && (
+                <motion.div
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-center"
+                >
+                  <p className="text-sm text-amber-800">
+                    <span className="font-semibold">Ordering from:</span> {shopName}
+                  </p>
+                </motion.div>
+ )}
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Your Name

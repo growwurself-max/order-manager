@@ -3,6 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { api, setRoleSession, clearRoleSession, getFrontendUrl } from '../../services/api';
 import { useToast } from '../../context/ToastContext';
 
+const PRODUCTION_URL = 'https://order-manager-team.vercel.app';
+
 export default function OwnerHome() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -954,20 +956,39 @@ export default function OwnerHome() {
               <h3 className="text-lg sm:text-xl font-bold mb-2" style={{ color: 'var(--text-primary)' }}>Shop QR Code</h3>
               <p className="text-xs sm:text-sm mb-4" style={{ color: 'var(--text-secondary)' }}>Customers can scan this code to browse your menu and place orders.</p>
               
+              {/* Shop ID Display */}
+              <div className="bg-white/5 rounded-xl p-4 mb-4" style={{ backgroundColor: 'var(--card-bg)', borderColor: 'var(--border-color)' }}>
+                <p className="text-xs mb-1" style={{ color: 'var(--text-secondary)' }}>Your Shop ID</p>
+                <p className="text-2xl font-mono font-bold text-indigo-500">{shopSettings.shop_identifier || 'N/A'}</p>
+                <p className="text-xs mt-2" style={{ color: 'var(--text-secondary)' }}>
+                  Share this ID with customers for manual entry
+                </p>
+              </div>
+              
               <div className="flex flex-col sm:flex-row items-center gap-6">
                 <div className="bg-white p-3 rounded-xl border border-gray-200">
                   <img
-                    src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(getFrontendUrl() + '/customer?shop=' + (shopSettings.id || shopSettings._id))}`}
+                    src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(shopSettings.customer_url || `${PRODUCTION_URL}/customer?shop=${shopSettings.shop_identifier || shopSettings.id}`)}`}
                     alt="Shop QR Code"
                     className="w-36 h-36"
                   />
                 </div>
                 <div className="space-y-3 w-full sm:w-auto">
                   <button
+                    onClick={() => {
+                      const url = shopSettings.customer_url || `${PRODUCTION_URL}/customer?shop=${shopSettings.shop_identifier || shopSettings.id}`;
+                      navigator.clipboard.writeText(url);
+                      showToast('Shop link copied to clipboard', 'success');
+                    }}
+                    className="w-full sm:w-auto min-h-[44px] bg-blue-500 hover:bg-blue-600 text-white px-5 py-2.5 rounded-xl font-semibold shadow-md transition flex items-center justify-center gap-2"
+                  >
+                    📋 Copy Link
+                  </button>
+                  
+                  <button
                     onClick={async () => {
                       try {
-                        const shopId = shopSettings.id || shopSettings._id;
-                        const url = getFrontendUrl() + '/customer?shop=' + shopId;
+                        const url = shopSettings.customer_url || `${PRODUCTION_URL}/customer?shop=${shopSettings.shop_identifier || shopSettings.id}`;
                         console.log('QR Download URL:', url);
                         const qrDataUrl = `https://api.qrserver.com/v1/create-qr-code/?size=500x500&data=${encodeURIComponent(url)}`;
                         const response = await fetch(qrDataUrl);
@@ -991,15 +1012,15 @@ export default function OwnerHome() {
                   
                   <button
                     onClick={() => {
-                      const shopId = shopSettings.id || shopSettings._id;
-                      const url = getFrontendUrl() + '/customer?shop=' + shopId;
+                      const url = shopSettings.customer_url || `${PRODUCTION_URL}/customer?shop=${shopSettings.shop_identifier || shopSettings.id}`;
                       console.log('QR Print URL:', url);
                       const printWindow = window.open('', '_blank');
                       const qrDataUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(url)}`;
+                      const shopName = shopSettings.shop_name;
                       printWindow.document.write(`
                         <html>
                           <head>
-                            <title>${shopSettings.shop_name} - Print QR</title>
+                            <title>${shopName} - Print QR</title>
                             <style>
                               body { font-family: system-ui, sans-serif; text-align: center; padding: 40px; color: #3E2723; background-color: #FDFBFA; }
                               .card { border: 2px solid #D7CCC8; padding: 30px; border-radius: 20px; max-width: 400px; margin: 0 auto; background-color: white; box-shadow: 0 8px 16px rgba(0,0,0,0.05); }
@@ -1011,7 +1032,7 @@ export default function OwnerHome() {
                           </head>
                           <body>
                             <div class="card">
-                              <h1>${shopSettings.shop_name}</h1>
+                              <h1>${shopName}</h1>
                               <p>Scan to Browse Menu & Order</p>
                               <img src="${qrDataUrl}" width="250" height="250" />
                               <div class="footer">Powered by Order Manager</div>
@@ -1027,7 +1048,7 @@ export default function OwnerHome() {
                       `);
                       printWindow.document.close();
                     }}
-                    className="w-full sm:w-auto min-h-[44px] bg-cafe-dark hover:bg-cafe-medium text-white px-5 py-2.5 rounded-xl font-semibold shadow-md transition flex items-center justify-center gap-2"
+                    className="w-full sm:w-auto min-h-[44px] bg-gray-700 hover:bg-gray-600 text-white px-5 py-2.5 rounded-xl font-semibold shadow-md transition flex items-center justify-center gap-2"
                   >
                     🖨️ Print PDF
                   </button>
