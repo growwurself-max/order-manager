@@ -37,6 +37,25 @@ export default function CustomerHome() {
   const pollingRef = useRef(null);
   const prevStatusMapRef = useRef({});
 
+  const playNotificationSound = useCallback(() => {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const oscillator = ctx.createOscillator();
+      const gainNode = ctx.createGain();
+      oscillator.connect(gainNode);
+      gainNode.connect(ctx.destination);
+      oscillator.frequency.setValueAtTime(600, ctx.currentTime);
+      oscillator.frequency.setValueAtTime(800, ctx.currentTime + 0.1);
+      oscillator.frequency.setValueAtTime(1000, ctx.currentTime + 0.2);
+      gainNode.gain.setValueAtTime(0.4, ctx.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.6);
+      oscillator.start(ctx.currentTime);
+      oscillator.stop(ctx.currentTime + 0.6);
+    } catch (e) {
+      // Audio not supported, silent fallback
+    }
+  }, []);
+
   // On mount: restore customer session and check for active orders
   useEffect(() => {
     const initSession = async () => {
@@ -176,25 +195,6 @@ export default function CustomerHome() {
       setMenuLoading(false);
     }
   };
-
-  const playNotificationSound = useCallback(() => {
-    try {
-      const ctx = new (window.AudioContext || window.webkitAudioContext)();
-      const oscillator = ctx.createOscillator();
-      const gainNode = ctx.createGain();
-      oscillator.connect(gainNode);
-      gainNode.connect(ctx.destination);
-      oscillator.frequency.setValueAtTime(600, ctx.currentTime);
-      oscillator.frequency.setValueAtTime(800, ctx.currentTime + 0.1);
-      oscillator.frequency.setValueAtTime(1000, ctx.currentTime + 0.2);
-      gainNode.gain.setValueAtTime(0.4, ctx.currentTime);
-      gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.6);
-      oscillator.start(ctx.currentTime);
-      oscillator.stop(ctx.currentTime + 0.6);
-    } catch (e) {
-      // Audio not supported, silent fallback
-    }
-  }, []);
 
   const fetchAllOrdersStatus = async (orders) => {
     const updatedOrders = [];

@@ -1,7 +1,33 @@
 import axios from 'axios';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://ordermanager-backend-30x2.onrender.com';
-const FRONTEND_URL = import.meta.env.VITE_FRONTEND_URL || 'https://order-manager-team.vercel.app';
+const isLocalHost = (value) => typeof value === 'string' && /localhost|127\.0\.0\.1/.test(value);
+const getDefaultApiUrl = () => {
+  if (typeof window !== 'undefined' && window.location.hostname !== 'localhost') {
+    return 'https://ordermanager-backend-30x2.onrender.com';
+  }
+  return 'http://localhost:5000';
+};
+const getDefaultFrontendUrl = () => {
+  if (typeof window !== 'undefined' && window.location.hostname !== 'localhost') {
+    return 'https://order-manager-team.vercel.app';
+  }
+  return 'http://localhost:5173';
+};
+
+const API_BASE_URL = (() => {
+  const configured = import.meta.env.VITE_API_URL?.trim();
+  if (configured && (!isLocalHost(configured) || (typeof window !== 'undefined' && window.location.hostname === 'localhost'))) {
+    return configured;
+  }
+  return getDefaultApiUrl();
+})();
+const FRONTEND_URL = (() => {
+  const configured = import.meta.env.VITE_FRONTEND_URL?.trim();
+  if (configured && (!isLocalHost(configured) || (typeof window !== 'undefined' && window.location.hostname === 'localhost'))) {
+    return configured;
+  }
+  return getDefaultFrontendUrl();
+})();
 
 export const roleTokenKey = (role) => `teaflow_${role}_token`;
 
