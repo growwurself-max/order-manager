@@ -16,6 +16,7 @@ import {
   attachRecallFields,
 } from '../services/order.service.js';
 import { updatePaymentStatus as updatePaymentStatusDB, getFirstActiveShop } from '../services/supabase.service.js';
+import { resolveShopId } from '../utils/resolveShopId.js';
 
 export const placeOrder = async (req, res, next) => {
   try {
@@ -23,21 +24,28 @@ export const placeOrder = async (req, res, next) => {
     
     if (!shopId) {
       shopId = req.query.shopId;
-      
-      if (!shopId) {
-        const shop = await getFirstActiveShop();
-        if (!shop) {
-          return res.status(HTTP_STATUS.NOT_FOUND).json({
-            message: 'No active shop found',
-          });
-        }
-        shopId = shop.id;
+    }
+
+    if (!shopId) {
+      const shop = await getFirstActiveShop();
+      if (!shop) {
+        return res.status(HTTP_STATUS.NOT_FOUND).json({
+          message: 'No active shop found',
+        });
       }
+      shopId = shop.id;
+    }
+
+    const resolvedShopId = await resolveShopId(shopId);
+    if (!resolvedShopId) {
+      return res.status(HTTP_STATUS.NOT_FOUND).json({
+        message: 'Shop not found with this Shop ID',
+      });
     }
     
     const orderData = req.body;
 
-    const order = await createOrder(shopId, orderData);
+    const order = await createOrder(resolvedShopId, orderData);
     const mapped = addIdAlias(order);
 
     res.status(HTTP_STATUS.CREATED).json({
@@ -170,7 +178,14 @@ export const exportOrders = async (req, res, next) => {
       shopId = shop.id;
     }
 
-    const orders = await getAllOrdersForExport(shopId, req.query.startDate, req.query.endDate);
+    const resolvedShopId = await resolveShopId(shopId);
+    if (!resolvedShopId) {
+      return res.status(HTTP_STATUS.NOT_FOUND).json({
+        message: 'Shop not found with this Shop ID',
+      });
+    }
+
+    const orders = await getAllOrdersForExport(resolvedShopId, req.query.startDate, req.query.endDate);
 
     const escapeCSVValue = (value) => {
       const str = String(value);
@@ -277,7 +292,14 @@ export const getActiveOrderByPhone = async (req, res, next) => {
       shopId = shop.id;
     }
 
-    const orders = await getActiveOrderByCustomerPhone(shopId, phone);
+    const resolvedShopId = await resolveShopId(shopId);
+    if (!resolvedShopId) {
+      return res.status(HTTP_STATUS.NOT_FOUND).json({
+        message: 'Shop not found with this Shop ID',
+      });
+    }
+
+    const orders = await getActiveOrderByCustomerPhone(resolvedShopId, phone);
 
     if (!orders || orders.length === 0) {
       return res.status(HTTP_STATUS.NOT_FOUND).json({

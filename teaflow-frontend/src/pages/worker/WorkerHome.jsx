@@ -187,7 +187,17 @@ export default function WorkerHome() {
     setError('');
     try {
       const response = await api.post(`/api/orders/${orderId}/recall`);
+      const order = orders.find((entry) => entry._id === orderId);
       playNotificationSound();
+      const payload = {
+        orderId,
+        orderNumber: order?.orderNumber || order?.order_number,
+        message: '🔔 Your order is ready!\nPlease collect it from the counter.',
+      };
+      if (payload.orderNumber || payload.orderId) {
+        window.dispatchEvent(new CustomEvent('order-recall', { detail: payload }));
+        localStorage.setItem('teaflow_recall_alert', JSON.stringify(payload));
+      }
       showToast('Customer notified successfully', 'success');
       setOrders(prev => {
         const updated = prev.map(order =>

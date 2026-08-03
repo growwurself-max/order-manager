@@ -433,6 +433,7 @@ export default function OwnerHome() {
     setActionLoading(true);
     try {
       await api.post(`/api/orders/${orderId}/recall`);
+      const order = orders.find((entry) => entry._id === orderId);
       // Play notification sound
       try {
         const ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -448,6 +449,15 @@ export default function OwnerHome() {
         oscillator.stop(ctx.currentTime + 0.3);
       } catch (e) {
         // Audio not supported, silent fallback
+      }
+      const payload = {
+        orderId,
+        orderNumber: order?.orderNumber || order?.order_number,
+        message: '🔔 Your order is ready!\nPlease collect it from the counter.',
+      };
+      if (payload.orderNumber || payload.orderId) {
+        window.dispatchEvent(new CustomEvent('order-recall', { detail: payload }));
+        localStorage.setItem('teaflow_recall_alert', JSON.stringify(payload));
       }
       showToast('Customer notified successfully', 'success');
       fetchOrders();

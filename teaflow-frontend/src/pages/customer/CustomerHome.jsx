@@ -33,6 +33,7 @@ export default function CustomerHome() {
   const [menuLoading, setMenuLoading] = useState(false);
   const [error, setError] = useState('');
   const [initializing, setInitializing] = useState(true);
+  const [recallBanner, setRecallBanner] = useState(null);
   const pollingRef = useRef(null);
   const prevStatusMapRef = useRef({});
 
@@ -113,6 +114,47 @@ export default function CustomerHome() {
       fetchMenu();
     }
   }, [step]);
+
+  useEffect(() => {
+    const handleRecallEvent = (event) => {
+      const payload = event.detail || event.newValue ? JSON.parse(event.newValue || '{}') : {};
+      const { orderId, orderNumber, message } = payload;
+      if (!orderId && !orderNumber) return;
+
+      const bannerMessage = message || '🔔 Your order is ready!\nPlease collect it from the counter.';
+      setRecallBanner({ orderId, orderNumber, message: bannerMessage });
+      playNotificationSound();
+
+      if ('vibrate' in navigator) {
+        navigator.vibrate([300, 200, 300]);
+      }
+
+      if ('Notification' in window && Notification.permission === 'granted') {
+        new Notification('Order Ready', {
+          body: 'Please collect your order from the counter.',
+          icon: '/favicon.ico',
+        });
+      }
+    };
+
+    const handleStorageEvent = (event) => {
+      if (event.key !== 'teaflow_recall_alert') return;
+      handleRecallEvent({ detail: JSON.parse(event.newValue || '{}') });
+    };
+
+    window.addEventListener('order-recall', handleRecallEvent);
+    window.addEventListener('storage', handleStorageEvent);
+    return () => {
+      window.removeEventListener('order-recall', handleRecallEvent);
+      window.removeEventListener('storage', handleStorageEvent);
+    };
+  }, [playNotificationSound]);
+
+  useEffect(() => {
+    if (!recallBanner) return;
+    const timer = window.setTimeout(() => setRecallBanner(null), 6000);
+    return () => window.clearTimeout(timer);
+  }, [recallBanner]);
 
   const fetchMenu = async () => {
     setMenuLoading(true);
@@ -433,6 +475,28 @@ export default function CustomerHome() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-amber-50 via-orange-50 to-rose-50 pb-20 sm:pb-24">
+      <AnimatePresence>
+        {recallBanner && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="fixed top-4 left-1/2 z-50 w-[calc(100%-2rem)] max-w-md -translate-x-1/2 rounded-2xl border border-orange-200 bg-orange-600 px-4 py-4 text-white shadow-2xl"
+          >
+            <div className="flex items-start gap-3">
+              <span className="text-2xl">🔔</span>
+              <div className="flex-1">
+                <p className="text-lg font-semibold">Your order is ready!</p>
+                <p className="mt-1 text-sm text-orange-100">Please collect it from the counter.</p>
+                {recallBanner.orderNumber && (
+                  <p className="mt-2 text-xs text-orange-100">Order #{recallBanner.orderNumber}</p>
+                )}
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <AnimatePresence mode="wait">
         {step === 'welcome' && (
           <motion.div
