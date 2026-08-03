@@ -76,6 +76,36 @@ export function OrderNotificationProvider({ children }) {
   const notifiedOrderIds = useRef(new Set());
   const customerPhoneRef = useRef(null);
 
+  const showNotification = useCallback((payload) => {
+    const type = payload.type || 'order_recall';
+    const order = payload.order || {};
+    const orderId = order.id || payload.orderId || order._id || order.orderId;
+    const orderNumber = order.orderNumber || payload.orderNumber || order.order_number;
+    const notificationKey = `${type}:${orderId || orderNumber || 'generic'}`;
+
+    if (!orderId && !orderNumber) return;
+    if (notifiedOrderIds.current.has(notificationKey)) return;
+
+    notifiedOrderIds.current.add(notificationKey);
+
+    if (orderId) {
+      setReadyOrders(function(prev) {
+        const next = {};
+        for (const k in prev) next[k] = prev[k];
+        next[orderId] = { ...order, id: orderId, orderNumber };
+        return next;
+      });
+    }
+
+    setShowPopup(true);
+    setPopupOrder({ ...order, id: orderId, orderNumber });
+
+    if (!isMuted) {
+      playLoudAlert(audioContextRef);
+    }
+    vibrateDevice();
+  }, [isMuted]);
+
   useEffect(() => {
     const unlockAudio = () => {
       const ctx = createAudioContext(audioContextRef);
@@ -124,36 +154,6 @@ export function OrderNotificationProvider({ children }) {
   useEffect(() => {
     localStorage.setItem(READY_ORDERS_KEY, JSON.stringify(readyOrders));
   }, [readyOrders]);
-
-  const showNotification = useCallback((payload) => {
-    const type = payload.type || 'order_recall';
-    const order = payload.order || {};
-    const orderId = order.id || payload.orderId || order._id || order.orderId;
-    const orderNumber = order.orderNumber || payload.orderNumber || order.order_number;
-    const notificationKey = `${type}:${orderId || orderNumber || 'generic'}`;
-
-    if (!orderId && !orderNumber) return;
-    if (notifiedOrderIds.current.has(notificationKey)) return;
-
-    notifiedOrderIds.current.add(notificationKey);
-
-    if (orderId) {
-      setReadyOrders(function(prev) {
-        const next = {};
-        for (const k in prev) next[k] = prev[k];
-        next[orderId] = { ...order, id: orderId, orderNumber };
-        return next;
-      });
-    }
-
-    setShowPopup(true);
-    setPopupOrder({ ...order, id: orderId, orderNumber });
-
-    if (!isMuted) {
-      playLoudAlert(audioContextRef);
-    }
-    vibrateDevice();
-  }, [isMuted]);
 
   const connectToOrderEvents = useCallback((phone) => {
     if (!phone) return;
