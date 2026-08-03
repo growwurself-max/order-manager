@@ -182,83 +182,160 @@ export const getAllShops = async (filters = {}) => {
 };
 
 export const createShop = async (shopData, origin) => {
+  console.log('=== CREATE SHOP START ===');
+  console.log('Received shopData:', JSON.stringify(shopData, null, 2));
+  console.log('Received origin:', origin);
+
+  // Check database connection
+  console.log('Testing database connection...');
+  const { data: testConnection, error: connectionError } = await supabase
+    .from('shop_settings')
+    .select('id')
+    .limit(1);
+  
+  if (connectionError) {
+    console.error('Database connection failed:', JSON.stringify(connectionError, null, 2));
+    throw new Error(`Database connection failed: ${connectionError.message}`);
+  }
+  console.log('Database connection successful');
+
   // 1. Generate unique Shop ID
   const shopIdentifier = await generateShopId();
   console.log('Generated Shop ID:', shopIdentifier);
 
   // 2. Insert shop settings (without owner_id first)
-  const { data: shop, error: shopError } = await supabase
-    .from('shop_settings')
-    .insert([
-      {
-        shop_name: shopData.shopName,
-        shop_identifier: shopIdentifier,
-        address: { street: shopData.streetAddress || '' },
-        contact: {
-          phone: shopData.phoneNumber,
-          email: shopData.ownerEmail,
-        },
-        settings: {
-          orderPrefix: 'OM',
-          allowPreorder: false,
-          taxRate: 0.18,
-          currency: 'INR',
-          notifications: { email: true, sms: false },
-        },
-        branding: {
-          primaryColor: '#FF6F00',
-          theme: 'light',
-        },
-        subscription_plan: shopData.subscriptionPlan || (shopData.trialDays ? 'trial' : 'free'),
-        subscription_status: shopData.subscriptionPlan === 'trial' || shopData.trialDays ? 'trial' : 'active',
-        trial_days: shopData.trialDays ? parseInt(shopData.trialDays) : 30,
-      },
-    ])
-    .select()
-    .single();
+  const shopInsertData = {
+    shop_name: shopData.shopName,
+    shop_identifier: shopIdentifier,
+    address: { street: shopData.streetAddress || '' },
+    contact: {
+      phone: shopData.phoneNumber,
+      email: shopData.ownerEmail,
+    },
+    settings: {
+      orderPrefix: 'OM',
+      allowPreorder: false,
+      taxRate: 0.18,
+      currency: 'INR',
+      notifications: { email: true, sms: false },
+    },
+    branding: {
+      primaryColor: '#FF6F00',
+      theme: 'light',
+    },
+    subscription_plan: shopData.subscriptionPlan || (shopData.trialDays ? 'trial' : 'free'),
+    subscription_status: shopData.subscriptionPlan === 'trial' || shopData.trialDays ? 'trial' : 'active',
+    trial_days: shopData.trialDays ? parseInt(shopData.trialDays) : 30,
+  };
+  console.log('Shop insert data:', JSON.stringify(shopInsertData, null, 2));
 
-  if (shopError) throw shopError;
+  let shop, shopError;
+  try {
+    const result = await supabase
+      .from('shop_settings')
+      .insert([shopInsertData])
+      .select()
+      .single();
+    shop = result.data;
+    shopError = result.error;
+  } catch (err) {
+    console.error('Exception during shop insertion:', err);
+    throw new Error(`Exception during shop insertion: ${err.message}`);
+  }
+
+  if (shopError) {
+    console.error('Shop insertion error:', JSON.stringify(shopError, null, 2));
+    console.error('Error code:', shopError.code);
+    console.error('Error message:', shopError.message);
+    console.error('Error details:', shopError.details);
+    console.error('Error hint:', shopError.hint);
+    throw new Error(`Shop insertion failed: ${shopError.message} (Code: ${shopError.code})`);
+  }
+  console.log('Shop created successfully:', shop.id);
 
   // 3. Hash owner password & Insert owner
+  console.log('Hashing owner password...');
   const hashedPassword = await bcrypt.hash(shopData.ownerPassword, PASSWORD_SALT_ROUNDS);
-  const { data: owner, error: ownerError } = await supabase
-    .from('owners')
-    .insert([
-      {
-        email: shopData.ownerEmail,
-        password: hashedPassword,
-        name: shopData.ownerName,
-        phone: shopData.phoneNumber,
-        role: 'owner',
-        shop_id: shop.id,
-        is_active: true,
-      },
-    ])
-    .select()
-    .single();
+  console.log('Password hashed successfully');
+
+  const ownerInsertData = {
+    email: shopData.ownerEmail,
+    password: hashedPassword,
+    name: shopData.ownerName,
+    phone: shopData.phoneNumber,
+    role: 'owner',
+    shop_id: shop.id,
+    is_active: true,
+  };
+  console.log('Owner insert data:', JSON.stringify({ ...ownerInsertData, password: '***' }, null, 2));
+
+  let owner, ownerError;
+  try {
+    const result = await supabase
+      .from('owners')
+      .insert([ownerInsertData])
+      .select()
+      .single();
+    owner = result.data;
+    ownerError = result.error;
+  } catch (err) {
+    console.error('Exception during owner insertion:', err);
+    // Cleanup created shop on owner creation failure
+    console.log('Cleaning up shop due to owner creation exception...');
+    await supabase.from('shop_settings').delete().eq('id', shop.id);
+    throw new Error(`Exception during owner insertion: ${err.message}`);
+  }
 
   if (ownerError) {
+    console.error('Owner insertion error:', JSON.stringify(ownerError, null, 2));
+    console.error('Error code:', ownerError.code);
+    console.error('Error message:', ownerError.message);
+    console.error('Error details:', ownerError.details);
+    console.error('Error hint:', ownerError.hint);
     // Cleanup created shop on owner creation failure
+    console.log('Cleaning up shop due to owner creation failure...');
     await supabase.from('shop_settings').delete().eq('id', shop.id);
-    throw ownerError;
+    throw new Error(`Owner insertion failed: ${ownerError.message} (Code: ${ownerError.code})`);
   }
+  console.log('Owner created successfully:', owner.id);
 
   // 4. Update shop settings with owner_id & customer_url using Shop ID
   const productionUrl = origin || 'https://order-manager-team.vercel.app';
   const customerUrl = `${productionUrl}/customer?shop=${shopIdentifier}`;
   console.log('Generated customer_url:', customerUrl);
-  const { data: updatedShop, error: updateError } = await supabase
-    .from('shop_settings')
-    .update({
-      owner_id: owner.id,
-      customer_url: customerUrl,
-    })
-    .eq('id', shop.id)
-    .select()
-    .single();
 
-  if (updateError) throw updateError;
+  const shopUpdateData = {
+    owner_id: owner.id,
+    customer_url: customerUrl,
+  };
+  console.log('Shop update data:', JSON.stringify(shopUpdateData, null, 2));
 
+  let updatedShop, updateError;
+  try {
+    const result = await supabase
+      .from('shop_settings')
+      .update(shopUpdateData)
+      .eq('id', shop.id)
+      .select()
+      .single();
+    updatedShop = result.data;
+    updateError = result.error;
+  } catch (err) {
+    console.error('Exception during shop update:', err);
+    throw new Error(`Exception during shop update: ${err.message}`);
+  }
+
+  if (updateError) {
+    console.error('Shop update error:', JSON.stringify(updateError, null, 2));
+    console.error('Error code:', updateError.code);
+    console.error('Error message:', updateError.message);
+    console.error('Error details:', updateError.details);
+    console.error('Error hint:', updateError.hint);
+    throw new Error(`Shop update failed: ${updateError.message} (Code: ${updateError.code})`);
+  }
+  console.log('Shop updated successfully with owner_id and customer_url');
+
+  console.log('=== CREATE SHOP SUCCESS ===');
   return {
     shop: updatedShop,
     owner: {

@@ -78,18 +78,27 @@ export const getShops = async (req, res, next) => {
 
 export const postShop = async (req, res, next) => {
   try {
+    console.log('=== POST SHOP CONTROLLER START ===');
     const shopData = req.body;
+    console.log('Request body:', JSON.stringify(shopData, null, 2));
+    console.log('Request headers origin:', req.headers.origin);
+    console.log('Process env FRONTEND_URL:', process.env.FRONTEND_URL);
+
     // Retrieve origin of client request, fallback to production frontend URL
     const origin = req.headers.origin || process.env.FRONTEND_URL || 'https://order-manager-team.vercel.app';
-    console.log('Creating shop with origin:', origin);
+    console.log('Final origin to use:', origin);
 
     const result = await createShop(shopData, origin);
     console.log('Shop created with customer_url:', result.shop.customer_url);
+    console.log('=== POST SHOP CONTROLLER SUCCESS ===');
+
     res.status(HTTP_STATUS.CREATED).json({
       message: 'Shop and owner account created successfully',
       data: result,
     });
   } catch (error) {
+    console.error('=== POST SHOP CONTROLLER ERROR ===');
+    console.error('Error details:', JSON.stringify(error, null, 2));
     next(error);
   }
 };
