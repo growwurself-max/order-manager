@@ -27,7 +27,7 @@ export const ownerLoginValidator = [
 ];
 
 export const workerPinValidator = [
-  body('password').optional().isLength({ min: 8 }).withMessage('Password must be at least 8 characters').trim(),
+  body('password').optional().trim(),
   body('pin').optional().notEmpty().withMessage('PIN is required').trim(),
   body().custom((value) => {
     if (!value.password && !value.pin) {

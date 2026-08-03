@@ -15,17 +15,15 @@ export const workerPinValidator = [
     .escape(),
   body('password')
     .optional()
-    .isLength({ min: 8 })
-    .withMessage('Password must be at least 8 characters')
     .trim(),
   body('pin')
     .optional()
     .notEmpty()
-    .withMessage('Password is required')
+    .withMessage('PIN is required')
     .trim(),
   body().custom((value) => {
     if (!value.password && !value.pin) {
-      throw new Error('Password is required');
+      throw new Error('PIN is required');
     }
     return true;
   }),

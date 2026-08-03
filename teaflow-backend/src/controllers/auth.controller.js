@@ -25,16 +25,22 @@ export const workerLogin = async (req, res, next) => {
       });
     }
 
-    console.log('Worker login attempt:', username);
-    const result = await loginWorker(username, password || pin);
-    console.log('Worker login result:', result);
+    console.log('[worker-login] incoming request', {
+      username,
+      hasPassword: Boolean(password),
+      hasPin: Boolean(pin),
+    });
+    console.log('[worker-login] username received', username);
+    const submittedPin = (password ?? pin ?? '').toString();
+    const result = await loginWorker(username, submittedPin);
+    console.log('[worker-login] final response', result);
 
     res.status(HTTP_STATUS.OK).json({
       message: 'Login successful',
       ...result,
     });
   } catch (error) {
-    console.error('Worker login error:', error.message);
+    console.error('[worker-login] error', error.message);
     next(error);
   }
 };

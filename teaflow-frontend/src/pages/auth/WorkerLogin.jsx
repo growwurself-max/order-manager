@@ -18,7 +18,7 @@ export default function WorkerLogin() {
     try {
       const response = await api.post('/api/auth/login/worker', {
         username: username.trim(),
-        password: pin.trim(),
+        pin: pin.trim(),
       });
       setRoleSession('worker', response.data.token);
       toast.success('Login successful');
