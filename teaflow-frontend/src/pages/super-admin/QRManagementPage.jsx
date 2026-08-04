@@ -73,7 +73,7 @@ export default function QRManagementPage() {
       '</style></head><body><div class="card"><h1>' + shopName + '</h1>' +
       '<p>Scan to Browse Menu & Order</p>' +
       '<img src="' + qrDataUrl + '" width="250" height="250" />' +
-      '<div class="footer">Powered by Order Manager</div></div>' +
+      '<div class="footer">Made by SHA</div></div>' +
       '<script>window.onload=function(){window.print();setTimeout(function(){window.close();},500);}</script>' +
       '</body></html>'
     );

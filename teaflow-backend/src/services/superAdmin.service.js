@@ -761,7 +761,7 @@ export const getGlobalSettings = async () => {
   if (error) throw error;
   return (
     data || {
-      platform_name: 'Order Manager',
+      platform_name: 'Made by SHA',
       logo: '',
       support_email: 'support@ordermanager.com',
       contact_number: '',

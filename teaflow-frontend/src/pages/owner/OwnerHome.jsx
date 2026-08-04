@@ -434,22 +434,7 @@ export default function OwnerHome() {
     try {
       await api.post(`/api/orders/${orderId}/recall`);
       const order = orders.find((entry) => entry._id === orderId);
-      // Play notification sound
-      try {
-        const ctx = new (window.AudioContext || window.webkitAudioContext)();
-        const oscillator = ctx.createOscillator();
-        const gainNode = ctx.createGain();
-        oscillator.connect(gainNode);
-        gainNode.connect(ctx.destination);
-        oscillator.frequency.setValueAtTime(800, ctx.currentTime);
-        oscillator.frequency.setValueAtTime(1000, ctx.currentTime + 0.1);
-        gainNode.gain.setValueAtTime(0.3, ctx.currentTime);
-        gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
-        oscillator.start(ctx.currentTime);
-        oscillator.stop(ctx.currentTime + 0.3);
-      } catch (e) {
-        // Audio not supported, silent fallback
-      }
+      // No notification sound - only customer tracking page should play sounds
       const payload = {
         orderId,
         orderNumber: order?.orderNumber || order?.order_number,
@@ -507,7 +492,7 @@ export default function OwnerHome() {
           <div className="text-center mb-2">
             <span className="text-4xl sm:text-5xl">👨‍🍳</span>
           </div>
-          <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2 text-center">Order Manager - Owner Login</h2>
+          <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2 text-center">Owner Login</h2>
           <p className="text-gray-600 text-center mb-6 sm:mb-8 text-sm sm:text-base">Login to manage your shop</p>
 
           {error && (
@@ -1043,7 +1028,7 @@ export default function OwnerHome() {
                               <h1>${shopName}</h1>
                               <p>Scan to Browse Menu & Order</p>
                               <img src="${qrDataUrl}" width="250" height="250" />
-                              <div class="footer">Powered by Order Manager</div>
+                              <div class="footer">Made by SHA</div>
                             </div>
                             <script>
                               window.onload = function() {

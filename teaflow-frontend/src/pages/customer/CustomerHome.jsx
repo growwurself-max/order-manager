@@ -275,9 +275,9 @@ export default function CustomerHome() {
       return;
     }
     
-    // Validate Shop ID format (SHA####)
-    if (!/^SHA\d{4}$/.test(manualShopId.trim())) {
-      setError('Invalid Shop ID format. Please enter a valid Shop ID (e.g., SHA1001)');
+    // Validate Shop ID format (S####)
+    if (!/^S\d{4,}$/.test(manualShopId.trim())) {
+      setError('Invalid Shop ID format. Please enter a valid Shop ID (e.g., S1001)');
       return;
     }
 
@@ -508,7 +508,7 @@ export default function CustomerHome() {
               transition={{ delay: 0.3 }}
               className="text-3xl sm:text-4xl font-bold text-gray-900 text-center mb-3 sm:mb-4"
             >
-              Welcome to Order Manager
+              Welcome
             </motion.h1>
             <motion.p
               initial={{ y: 20, opacity: 0 }}
@@ -580,7 +580,7 @@ export default function CustomerHome() {
               transition={{ delay: 0.4 }}
               className="text-gray-600 text-center text-base sm:text-lg mb-8 sm:mb-12 max-w-sm px-4"
             >
-              Enter the Shop ID provided by the restaurant (e.g., SHA1001)
+              Enter the Shop ID provided by the restaurant (e.g., S1001)
             </motion.p>
             <motion.form
               initial={{ y: 20, opacity: 0 }}
@@ -598,7 +598,7 @@ export default function CustomerHome() {
                 }}
                 placeholder="Enter Shop ID"
                 className="w-full px-4 py-3 rounded-lg border-2 border-gray-300 focus:border-amber-500 focus:outline-none text-center text-lg font-semibold tracking-wider"
-                maxLength={7}
+                maxLength={10}
               />
               {error && (
                 <motion.p

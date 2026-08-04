@@ -97,13 +97,19 @@ export function OrderNotificationProvider({ children }) {
       });
     }
 
-    setShowPopup(true);
-    setPopupOrder({ ...order, id: orderId, orderNumber });
+    // Only show popup, play sound, and vibrate for customer tracking page
+    // Owner, worker, and super admin pages should not trigger these
+    const isCustomerPage = window.location.pathname === '/' || window.location.pathname.startsWith('/customer');
+    
+    if (isCustomerPage) {
+      setShowPopup(true);
+      setPopupOrder({ ...order, id: orderId, orderNumber });
 
-    if (!isMuted) {
-      playLoudAlert(audioContextRef);
+      if (!isMuted) {
+        playLoudAlert(audioContextRef);
+      }
+      vibrateDevice();
     }
-    vibrateDevice();
   }, [isMuted]);
 
   useEffect(() => {

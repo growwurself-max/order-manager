@@ -31,22 +31,9 @@ export default function WorkerHome() {
     };
   }, [isLoggedIn]);
 
+  // Notification sounds disabled for worker page - only customer tracking page should play sounds
   const playNotificationSound = useCallback(() => {
-    try {
-      const ctx = new (window.AudioContext || window.webkitAudioContext)();
-      const oscillator = ctx.createOscillator();
-      const gainNode = ctx.createGain();
-      oscillator.connect(gainNode);
-      gainNode.connect(ctx.destination);
-      oscillator.frequency.setValueAtTime(800, ctx.currentTime);
-      oscillator.frequency.setValueAtTime(1000, ctx.currentTime + 0.1);
-      gainNode.gain.setValueAtTime(0.3, ctx.currentTime);
-      gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
-      oscillator.start(ctx.currentTime);
-      oscillator.stop(ctx.currentTime + 0.3);
-    } catch (e) {
-      // Audio not supported, silent fallback
-    }
+    // No-op - workers should not hear notification sounds
   }, []);
 
   const startPolling = () => {
@@ -188,7 +175,7 @@ export default function WorkerHome() {
     try {
       const response = await api.post(`/api/orders/${orderId}/recall`);
       const order = orders.find((entry) => entry._id === orderId);
-      playNotificationSound();
+      // No notification sound - only customer tracking page should play sounds
       const payload = {
         orderId,
         orderNumber: order?.orderNumber || order?.order_number,
@@ -294,7 +281,7 @@ export default function WorkerHome() {
           <div className="text-center mb-2">
             <span className="text-5xl">👨‍🍳</span>
           </div>
-          <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2 text-center">Order Manager - Worker Login</h2>
+          <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2 text-center">Worker Login</h2>
           <p className="text-gray-600 text-center mb-6 sm:mb-8 text-sm sm:text-base">Enter your Username and PIN to access the worker dashboard</p>
 
           {error && (

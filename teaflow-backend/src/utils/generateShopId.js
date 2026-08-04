@@ -31,49 +31,36 @@ export function getShopIdentifierFromRow(shop) {
 }
 
 /**
- * Generate a unique Shop ID in format: SHA#### (e.g., SHA1001, SHA1123)
+ * Generate a unique sequential Shop ID in format: S#### (e.g., S1001, S1002)
  * @returns {Promise<string>} Unique shop identifier
  */
 export async function generateShopId() {
   console.log('=== GENERATE SHOP ID START ===');
-  const prefix = 'SHA';
-  let shopId;
-  let isUnique = false;
-  let attempts = 0;
-  const maxAttempts = 100;
+  const prefix = 'S';
+  
+  // Fetch all existing shop IDs to find the highest number
+  const { data, error } = await supabase
+    .from('shop_settings')
+    .select('*')
+    .limit(1000);
 
-  while (!isUnique && attempts < maxAttempts) {
-    // Generate a random 4-digit number (1000-9999)
-    const randomNum = Math.floor(Math.random() * 9000) + 1000;
-    shopId = `${prefix}${randomNum}`;
-    console.log(`Attempt ${attempts + 1}: Trying shop ID ${shopId}`);
-
-    const { data, error } = await supabase
-      .from('shop_settings')
-      .select('*')
-      .limit(1000);
-
-    if (error) {
-      console.error('Error checking shop ID uniqueness:', error);
-      throw new Error(`Error checking shop ID uniqueness: ${error.message}`);
-    }
-
-    const existingShop = data?.find((row) => getShopIdentifierFromRow(row) === shopId);
-    if (!existingShop) {
-      console.log(`Shop ID ${shopId} is unique`);
-      isUnique = true;
-    } else {
-      console.log(`Shop ID ${shopId} already exists, trying again`);
-    }
-
-    attempts++;
+  if (error) {
+    console.error('Error fetching existing shops:', error);
+    throw new Error(`Error fetching existing shops: ${error.message}`);
   }
 
-  if (!isUnique) {
-    console.error('Failed to generate unique shop ID after maximum attempts');
-    throw new Error('Failed to generate unique shop ID after maximum attempts');
-  }
+  // Extract all existing shop IDs and find the highest number
+  const existingIds = data
+    ?.map((row) => getShopIdentifierFromRow(row))
+    .filter((id) => id && id.startsWith(prefix))
+    .map((id) => parseInt(id.substring(prefix.length)))
+    .filter((num) => !isNaN(num)) || [];
 
+  const maxId = existingIds.length > 0 ? Math.max(...existingIds) : 1000;
+  const nextId = maxId + 1;
+  const shopId = `${prefix}${nextId}`;
+  
+  console.log(`Generated sequential shop ID: ${shopId} (previous max: ${maxId})`);
   console.log('=== GENERATE SHOP ID SUCCESS ===');
   return shopId;
 }
@@ -84,8 +71,8 @@ export async function generateShopId() {
  * @returns {boolean} True if valid format
  */
 export function validateShopIdFormat(shopId) {
-  // Format: SHA followed by exactly 4 digits
-  return /^SHA\d{4}$/.test(shopId);
+  // Format: S followed by 4 or more digits (e.g., S1001, S1002)
+  return /^S\d{4,}$/.test(shopId);
 }
 
 /**

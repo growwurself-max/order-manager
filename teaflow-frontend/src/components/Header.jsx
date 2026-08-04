@@ -34,9 +34,9 @@ export default function Header() {
       <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
         <Link to="/" className="flex items-center gap-2">
           <div className="w-8 h-8 bg-accent-warm rounded-lg flex items-center justify-center text-white font-bold">
-            O
+            S
           </div>
-          <span className="text-xl font-semibold text-cafe-dark">Order Manager</span>
+          <span className="text-xl font-semibold text-cafe-dark">Made by SHA</span>
         </Link>
         
         {/* Mobile menu button */}
