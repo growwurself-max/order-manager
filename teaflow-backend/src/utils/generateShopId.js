@@ -77,7 +77,7 @@ export function validateShopIdFormat(shopId) {
 
 /**
  * Get shop by shop identifier
- * @param {string} shopIdentifier - Shop ID (e.g., SHA1001)
+ * @param {string} shopIdentifier - Shop ID (e.g., S1001)
  * @returns {Promise<Object|null>} Shop data or null
  */
 export async function getShopByIdentifier(shopIdentifier) {

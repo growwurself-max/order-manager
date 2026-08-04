@@ -6,7 +6,7 @@ Implemented a robust Shop ID & QR Code system for the Order Manager multi-tenant
 ## Requirements Implemented
 
 ### 1. Unique Shop ID ✅
-- **Format**: SHA#### (e.g., SHA1001, SHA1123)
+- **Format**: S#### (e.g., S1001, S1123)
 - **Automatic Generation**: Shop IDs are automatically generated when a shop is created
 - **Database Storage**: `shop_identifier` field in `shop_settings` table with UNIQUE constraint
 - **Validation**: Format validation ensures SHA#### pattern

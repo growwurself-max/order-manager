@@ -201,8 +201,8 @@ export default function ShopManagementPage() {
         await updateShop(shopIdTarget.id, { regenerateShopId: true });
         showToast('Shop ID regenerated successfully', 'success');
       } else {
-        if (!/^SHA\d{4}$/.test(shopIdForm.shopIdentifier)) {
-          showToast('Invalid Shop ID format. Must be SHA#### (e.g., SHA1001)', 'error');
+        if (!/^S\d{4,}$/.test(shopIdForm.shopIdentifier)) {
+          showToast('Invalid Shop ID format. Must be S#### (e.g., S1001)', 'error');
           setActionLoading(false);
           return;
         }
@@ -535,11 +535,11 @@ export default function ShopManagementPage() {
                       type="text"
                       value={shopIdForm.shopIdentifier}
                       onChange={(e) => setShopIdForm({ ...shopIdForm, shopIdentifier: e.target.value.toUpperCase() })}
-                      placeholder="SHA#### (e.g., SHA1001)"
-                      maxLength={7}
+                      placeholder="S#### (e.g., S1001)"
+                      maxLength={6}
                       className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:outline-none focus:border-indigo-500 font-mono uppercase"
                     />
-                    <p className="text-xs text-slate-500 mt-1">Format: SHA followed by 4 digits</p>
+                    <p className="text-xs text-slate-500 mt-1">Format: S followed by 4 or more digits</p>
                   </div>
                 )}
 

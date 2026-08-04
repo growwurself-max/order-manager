@@ -59,7 +59,7 @@ export const validateShopId = async (req, res, next) => {
     // Validate format
     if (!validateShopIdFormat(shopId)) {
       return res.status(HTTP_STATUS.BAD_REQUEST).json({
-        message: 'Invalid Shop ID format. Must be in format SHA#### (e.g., SHA1001)',
+        message: 'Invalid Shop ID format. Must be in format S#### (e.g., S1001)',
       });
     }
 

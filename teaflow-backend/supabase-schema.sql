@@ -134,6 +134,16 @@ CREATE TABLE IF NOT EXISTS customers (
 CREATE INDEX IF NOT EXISTS idx_customers_shop_phone ON customers(shop_id, phone);
 
 -- ===========================
+-- Table: order_sequences (for sequential order numbers ORD100001, ORD100002...)
+-- ===========================
+CREATE TABLE IF NOT EXISTS order_sequences (
+  shop_id UUID PRIMARY KEY NOT NULL REFERENCES shop_settings(id) ON DELETE CASCADE,
+  last_number BIGINT NOT NULL DEFAULT 100000,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ===========================
 -- Table: super_admins
 -- ===========================
 CREATE TABLE IF NOT EXISTS super_admins (

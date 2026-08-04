@@ -206,7 +206,7 @@ export const createShop = async (shopData, origin) => {
 
   // 2. Insert shop settings (without owner_id first)
   const shopSettings = {
-    orderPrefix: 'OM',
+    orderPrefix: 'TF',
     allowPreorder: false,
     taxRate: 0.18,
     currency: 'INR',
@@ -303,7 +303,9 @@ export const createShop = async (shopData, origin) => {
   console.log('Owner created successfully:', owner.id);
 
   // 4. Update shop settings with owner_id & customer_url using Shop ID
-  const productionUrl = origin || 'https://order-manager-team.vercel.app';
+  // Always use the production domain for customer_url so QR codes
+  // generated from any origin (including localhost) point to production.
+  const productionUrl = 'https://order-manager-team.vercel.app';
   const customerUrl = `${productionUrl}/customer?shop=${shopIdentifier}`;
   console.log('Generated customer_url:', customerUrl);
 
@@ -373,7 +375,7 @@ export const updateShop = async (shopId, updates) => {
   // Handle Shop ID updates (only for Super Admin)
   if (updates.shopIdentifier !== undefined) {
     if (!validateShopIdFormat(updates.shopIdentifier)) {
-      throw new Error('Invalid Shop ID format. Must be in format SHA#### (e.g., SHA1001)');
+      throw new Error('Invalid Shop ID format. Must be in format S#### (e.g., S1001)');
     }
 
     const existingShop = await getShopByIdentifier(updates.shopIdentifier);
