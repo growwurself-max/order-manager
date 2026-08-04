@@ -77,6 +77,20 @@ export const menuItemValidator = [
   body('isAvailable').optional().isBoolean(),
   body('displayOrder').optional().isInt().toFloat(),
   body('imageUrl').optional().isURL().withMessage('Invalid image URL'),
+  body('imageData')
+    .optional()
+    .isString()
+    .withMessage('Image data must be a string')
+    .custom((value) => {
+      if (!value) return true;
+      // Base64 image payloads for ~5MB files are roughly 7MB
+      const maxBase64Length = 7 * 1024 * 1024;
+      if (value.length > maxBase64Length) {
+        throw new Error('Image data exceeds maximum size (5MB)');
+      }
+      return true;
+    }),
+  body('removeImage').optional().isBoolean().withMessage('removeImage must be a boolean'),
   validateRequest,
 ];
 

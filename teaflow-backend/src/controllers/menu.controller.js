@@ -8,14 +8,24 @@ import {
   deleteMenuItem as deleteMenuItemService,
   getFirstActiveShop,
 } from '../services/supabase.service.js';
+import { uploadImage, deleteImage } from '../services/image.service.js';
 import { menuItemToDB, toSnakeCase } from '../utils/mapping.js';
 import { getShopByIdentifier, validateShopIdFormat } from '../utils/generateShopId.js';
 import { resolveShopId } from '../utils/resolveShopId.js';
+import { AppError } from '../utils/AppError.js';
 
 export const createMenu = async (req, res, next) => {
   try {
     const shopId = req.user.shopId;
-    const menuData = req.body;
+    const { imageData, ...menuData } = req.body;
+
+    if (imageData) {
+      try {
+        menuData.imageUrl = await uploadImage(imageData, `teaflow/menu/${shopId}`);
+      } catch (err) {
+        throw new AppError('Failed to upload image. Please check Cloudinary configuration.', HTTP_STATUS.BAD_REQUEST);
+      }
+    }
 
     // Map camelCase from frontend to snake_case for DB
     const dbData = toSnakeCase(menuData, menuItemToDB);
@@ -91,7 +101,33 @@ export const getMenuItem = async (req, res, next) => {
 export const updateMenu = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const updates = req.body;
+    const { imageData, removeImage, ...updates } = req.body;
+
+    const existingItem = await getMenuById(id);
+    if (!existingItem) {
+      return res.status(HTTP_STATUS.NOT_FOUND).json({
+        message: 'Menu item not found',
+      });
+    }
+
+    if (removeImage) {
+      if (existingItem.image_url) {
+        await deleteImage(existingItem.image_url);
+      }
+      updates.imageUrl = null;
+    } else if (imageData) {
+      if (existingItem.image_url) {
+        await deleteImage(existingItem.image_url);
+      }
+      try {
+        updates.imageUrl = await uploadImage(
+          imageData,
+          `teaflow/menu/${existingItem.shop_id}`
+        );
+      } catch (err) {
+        throw new AppError('Failed to upload image. Please check Cloudinary configuration.', HTTP_STATUS.BAD_REQUEST);
+      }
+    }
 
     // Map camelCase from frontend to snake_case for DB
     const dbUpdates = toSnakeCase(updates, menuItemToDB);
@@ -116,6 +152,12 @@ export const updateMenu = async (req, res, next) => {
 export const deleteMenu = async (req, res, next) => {
   try {
     const { id } = req.params;
+
+    const existingItem = await getMenuById(id);
+    if (existingItem?.image_url) {
+      await deleteImage(existingItem.image_url);
+    }
+
     await deleteMenuItemService(id);
 
     res.status(HTTP_STATUS.OK).json({

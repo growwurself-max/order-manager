@@ -60,7 +60,7 @@ const corsOptions = {
 };
 
 app.use(cors(corsOptions));
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
 app.use(logger);
 
 // Rate limiting: only restrict auth login and general API separately

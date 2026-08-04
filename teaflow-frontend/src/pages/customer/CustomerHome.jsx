@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { api } from '../../services/api';
 import { useOrderNotification } from '../../context/OrderNotificationContext';
+import ProductImage from '../../components/ProductImage';
 
 const STORAGE_KEYS = {
   CUSTOMER_INFO: 'teaflow_customer',
@@ -811,52 +812,57 @@ export default function CustomerHome() {
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: Math.min(index * 0.03, 0.3), duration: 0.3 }}
-                    className="bg-white rounded-2xl p-4 sm:p-6 shadow-sm border border-gray-100"
+                    className="bg-white rounded-2xl p-4 sm:p-5 shadow-sm border border-gray-100 overflow-hidden"
                   >
-                    <div className="flex justify-between items-start mb-3">
-                      <div className="flex-1 min-w-0">
+                    <div className="flex gap-4">
+                      <ProductImage
+                        imageUrl={item.imageUrl}
+                        category={item.category}
+                        alt={item.name}
+                        size="md"
+                      />
+                      <div className="flex-1 min-w-0 flex flex-col">
                         <h3 className="text-lg sm:text-xl font-bold text-gray-900 mb-1">{item.name}</h3>
-                        <p className="text-gray-600 text-sm line-clamp-2">{item.description}</p>
-                      </div>
-                      <div className="text-xl sm:text-2xl ml-2 sm:ml-4 flex-shrink-0">🥤</div>
-                    </div>
-                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mt-4">
-                      <span className="text-xl sm:text-2xl font-bold text-orange-600">
-                        ₹{Number(item.price).toFixed(2)}
-                      </span>
-                      <div className="flex gap-2 w-full sm:w-auto">
-                        {cart.find(i => i._id === item._id) ? (
-                          <div className="flex items-center gap-3 bg-gray-50 rounded-xl px-3 py-2">
-                            <motion.button
-                              whileHover={{ scale: 1.1 }}
-                              whileTap={{ scale: 0.9 }}
-                              onClick={() => updateQuantity(item._id, -1)}
-                              className="min-w-[44px] min-h-[44px] w-11 h-11 rounded-full bg-white border-2 border-gray-200 flex items-center justify-center font-bold text-gray-700 hover:border-orange-300 hover:text-orange-600 transition shadow-sm"
-                            >
-                              −
-                            </motion.button>
-                            <span className="font-bold text-lg w-8 text-center text-gray-900">
-                              {cart.find(i => i._id === item._id)?.quantity || 0}
-                            </span>
-                            <motion.button
-                              whileHover={{ scale: 1.1 }}
-                              whileTap={{ scale: 0.9 }}
-                              onClick={() => updateQuantity(item._id, 1)}
-                              className="min-w-[44px] min-h-[44px] w-11 h-11 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 text-white flex items-center justify-center font-bold hover:shadow-md transition"
-                            >
-                              +
-                            </motion.button>
+                        <p className="text-gray-600 text-sm line-clamp-2 flex-1">{item.description}</p>
+                        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mt-3">
+                          <span className="text-xl sm:text-2xl font-bold text-orange-600">
+                            ₹{Number(item.price).toFixed(2)}
+                          </span>
+                          <div className="flex gap-2 w-full sm:w-auto">
+                            {cart.find(i => i._id === item._id) ? (
+                              <div className="flex items-center gap-3 bg-gray-50 rounded-xl px-3 py-2">
+                                <motion.button
+                                  whileHover={{ scale: 1.1 }}
+                                  whileTap={{ scale: 0.9 }}
+                                  onClick={() => updateQuantity(item._id, -1)}
+                                  className="min-w-[44px] min-h-[44px] w-11 h-11 rounded-full bg-white border-2 border-gray-200 flex items-center justify-center font-bold text-gray-700 hover:border-orange-300 hover:text-orange-600 transition shadow-sm"
+                                >
+                                  −
+                                </motion.button>
+                                <span className="font-bold text-lg w-8 text-center text-gray-900">
+                                  {cart.find(i => i._id === item._id)?.quantity || 0}
+                                </span>
+                                <motion.button
+                                  whileHover={{ scale: 1.1 }}
+                                  whileTap={{ scale: 0.9 }}
+                                  onClick={() => updateQuantity(item._id, 1)}
+                                  className="min-w-[44px] min-h-[44px] w-11 h-11 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 text-white flex items-center justify-center font-bold hover:shadow-md transition"
+                                >
+                                  +
+                                </motion.button>
+                              </div>
+                            ) : (
+                              <motion.button
+                                whileHover={{ scale: 1.02 }}
+                                whileTap={{ scale: 0.98 }}
+                                onClick={() => addToCart(item)}
+                                className="w-full sm:flex-1 min-h-[44px] bg-gradient-to-r from-amber-500 to-orange-500 text-white px-4 py-3 rounded-xl font-semibold shadow-md"
+                              >
+                                Add to Cart
+                              </motion.button>
+                            )}
                           </div>
-                        ) : (
-                          <motion.button
-                            whileHover={{ scale: 1.02 }}
-                            whileTap={{ scale: 0.98 }}
-                            onClick={() => addToCart(item)}
-                            className="w-full sm:flex-1 min-h-[44px] bg-gradient-to-r from-amber-500 to-orange-500 text-white px-4 py-3 rounded-xl font-semibold shadow-md"
-                          >
-                            Add to Cart
-                          </motion.button>
-                        )}
+                        </div>
                       </div>
                     </div>
                   </motion.div>

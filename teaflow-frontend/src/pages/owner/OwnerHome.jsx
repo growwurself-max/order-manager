@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { api, setRoleSession, clearRoleSession, getFrontendUrl } from '../../services/api';
 import { useToast } from '../../context/ToastContext';
+import ImageUploader from '../../components/ImageUploader';
+import ProductImage from '../../components/ProductImage';
 
 export default function OwnerHome() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -32,6 +34,9 @@ export default function OwnerHome() {
     category: 'milk-tea',
     isAvailable: true,
   });
+  const [imageData, setImageData] = useState(null);
+  const [removeImage, setRemoveImage] = useState(false);
+  const [existingImageUrl, setExistingImageUrl] = useState(null);
 
   // Worker Form States
   const [editingWorker, setEditingWorker] = useState(null);
@@ -243,6 +248,20 @@ export default function OwnerHome() {
     }
   };
 
+  const resetMenuItemForm = () => {
+    setEditingMenuItem(null);
+    setMenuItemForm({
+      name: '',
+      description: '',
+      price: '',
+      category: 'milk-tea',
+      isAvailable: true,
+    });
+    setImageData(null);
+    setRemoveImage(false);
+    setExistingImageUrl(null);
+  };
+
   // Menu Item Actions
   const handleSaveMenuItem = async (e) => {
     e.preventDefault();
@@ -253,21 +272,21 @@ export default function OwnerHome() {
         price: parseFloat(menuItemForm.price),
       };
 
+      if (imageData) {
+        payload.imageData = imageData;
+      }
+      if (removeImage) {
+        payload.removeImage = true;
+      }
+
       if (editingMenuItem) {
         await api.put(`/api/menu/${editingMenuItem._id}`, payload);
         showToast('Menu item updated successfully', 'success');
-        setEditingMenuItem(null);
       } else {
         await api.post('/api/menu', payload);
         showToast('Menu item added successfully', 'success');
       }
-      setMenuItemForm({
-        name: '',
-        description: '',
-        price: '',
-        category: 'milk-tea',
-        isAvailable: true,
-      });
+      resetMenuItemForm();
       fetchMenu();
     } catch (err) {
       showToast(err.response?.data?.message || 'Failed to save menu item', 'error');
@@ -285,6 +304,9 @@ export default function OwnerHome() {
       category: item.category || 'milk-tea',
       isAvailable: item.isAvailable ?? true,
     });
+    setImageData(null);
+    setRemoveImage(false);
+    setExistingImageUrl(item.imageUrl || null);
     setActiveTab('menu');
   };
 
@@ -688,6 +710,16 @@ export default function OwnerHome() {
               />
               <label htmlFor="isAvailable" style={{ color: 'var(--text-primary)' }}>Available</label>
             </div>
+            <ImageUploader
+              key={editingMenuItem?._id || 'new'}
+              existingImageUrl={existingImageUrl}
+              onImageChange={(data) => {
+                setImageData(data);
+                if (data) setRemoveImage(false);
+              }}
+              onRemove={() => setRemoveImage(true)}
+              disabled={actionLoading}
+            />
             <div className="flex gap-3">
               <button
                 type="submit"
@@ -699,10 +731,7 @@ export default function OwnerHome() {
               {editingMenuItem && (
                 <button
                   type="button"
-                  onClick={() => {
-                    setEditingMenuItem(null);
-                    setMenuItemForm({ name: '', description: '', price: '', category: 'milk-tea', isAvailable: true });
-                  }}
+                  onClick={resetMenuItemForm}
                   className="min-h-[44px] px-6 py-3 rounded-xl font-semibold transition"
                   style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-primary)' }}
                 >
@@ -714,7 +743,14 @@ export default function OwnerHome() {
 
           <div className="space-y-3">
             {menuItems.map((item) => (
-              <div key={item._id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 rounded-2xl" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
+              <div key={item._id} className="flex flex-col sm:flex-row sm:items-center gap-3 p-4 rounded-2xl" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
+                <ProductImage
+                  imageUrl={item.imageUrl}
+                  category={item.category}
+                  alt={item.name}
+                  size="md"
+                  className="sm:mr-2"
+                />
                 <div className="flex-1 min-w-0">
                   <h4 className="font-semibold text-sm sm:text-base" style={{ color: 'var(--text-primary)' }}>{item.name}</h4>
                   <p className="text-xs sm:text-sm line-clamp-2" style={{ color: 'var(--text-secondary)' }}>{item.description}</p>
