@@ -13,6 +13,7 @@ import {
   getActiveOrderByCustomerPhone,
   getRecallStats,
   attachRecallFields,
+  recallCustomer,
 } from '../services/order.service.js';
 import { updatePaymentStatus as updatePaymentStatusDB, getFirstActiveShop } from '../services/supabase.service.js';
 import { resolveShopId } from '../utils/resolveShopId.js';
