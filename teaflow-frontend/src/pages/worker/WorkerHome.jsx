@@ -10,7 +10,9 @@ export default function WorkerHome() {
   const [orders, setOrders] = useState([]);
   const [error, setError] = useState('');
   const { showToast } = useToast();
+  const { playWorkerNewOrderSound } = useOrderNotification();
   const pollingRef = useRef(null);
+  const processedOrderIds = useRef(new Set());
 
   const [loginForm, setLoginForm] = useState({ username: '', password: '' });
   const [loginLoading, setLoginLoading] = useState(false);
