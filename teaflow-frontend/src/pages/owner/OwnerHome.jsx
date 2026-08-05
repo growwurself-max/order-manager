@@ -997,7 +997,7 @@ export default function OwnerHome() {
               <div className="flex flex-col sm:flex-row items-center gap-6">
                 <div className="bg-white p-3 rounded-xl border border-gray-200">
                   <img
-                    src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(shopSettings.customer_url || `${getFrontendUrl()}/customer?shop=${shopSettings.shop_identifier || shopSettings.id}`)}`}
+                    src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(`https://order-manager-team.vercel.app/customer?shop=${shopSettings.shop_identifier}`)}`}
                     alt="Shop QR Code"
                     className="w-36 h-36"
                   />
@@ -1005,7 +1005,7 @@ export default function OwnerHome() {
                 <div className="space-y-3 w-full sm:w-auto">
                   <button
                     onClick={() => {
-                      const url = shopSettings.customer_url || `${getFrontendUrl()}/customer?shop=${shopSettings.shop_identifier || shopSettings.id}`;
+                      const url = `https://order-manager-team.vercel.app/customer?shop=${shopSettings.shop_identifier}`;
                       navigator.clipboard.writeText(url);
                       showToast('Shop link copied to clipboard', 'success');
                     }}
@@ -1017,7 +1017,7 @@ export default function OwnerHome() {
                   <button
                     onClick={async () => {
                       try {
-                        const url = shopSettings.customer_url || `${getFrontendUrl()}/customer?shop=${shopSettings.shop_identifier || shopSettings.id}`;
+                        const url = `https://order-manager-team.vercel.app/customer?shop=${shopSettings.shop_identifier}`;
                         console.log('QR Download URL:', url);
                         const qrDataUrl = `https://api.qrserver.com/v1/create-qr-code/?size=500x500&data=${encodeURIComponent(url)}`;
                         const response = await fetch(qrDataUrl);
@@ -1041,7 +1041,7 @@ export default function OwnerHome() {
                   
                   <button
                     onClick={() => {
-                      const url = shopSettings.customer_url || `${getFrontendUrl()}/customer?shop=${shopSettings.shop_identifier || shopSettings.id}`;
+                      const url = `https://order-manager-team.vercel.app/customer?shop=${shopSettings.shop_identifier}`;
                       console.log('QR Print URL:', url);
                       const printWindow = window.open('', '_blank');
                       const qrDataUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(url)}`;

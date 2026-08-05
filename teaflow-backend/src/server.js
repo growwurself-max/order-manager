@@ -102,7 +102,7 @@ app.use('/api/shop', shopRoutes);
 app.use('/api/events', eventRoutes);
 app.use('/api/super-admin', superAdminRoutes);
 
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 10000;
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
