@@ -1,15 +1,29 @@
 import { HTTP_STATUS } from '../utils/constants.js';
 import { addIdAlias } from '../utils/responseFormatter.js';
 import { getShopSettingsById, updateShopSettings as updateShopSettingsDB } from '../services/supabase.service.js';
-import { getShopByIdentifier, validateShopIdFormat } from '../utils/generateShopId.js';
+import { getShopByIdentifier, validateShopIdFormat, isShopId } from '../utils/generateShopId.js';
+import { resolveShopId } from '../utils/resolveShopId.js';
 
 export const getShopSettings = async (req, res, next) => {
   try {
-    const shopId = req.user.shopId;
-    console.log('Fetching shop settings for shopId:', shopId);
+    let shopId = req.user.shopId;
+    console.log('[getShopSettings] Incoming shopId from user:', shopId);
+
+    // Resolve Shop ID to UUID if needed
+    if (shopId && isShopId(shopId)) {
+      console.log('[getShopSettings] Shop ID detected, resolving to UUID');
+      const resolvedShopId = await resolveShopId(shopId);
+      if (!resolvedShopId) {
+        return res.status(HTTP_STATUS.NOT_FOUND).json({
+          message: 'Shop not found',
+        });
+      }
+      shopId = resolvedShopId;
+      console.log('[getShopSettings] Resolved UUID:', shopId);
+    }
 
     const shopSettings = await getShopSettingsById(shopId);
-    console.log('Shop settings data:', shopSettings);
+    console.log('[getShopSettings] Shop settings data:', shopSettings);
 
     if (!shopSettings) {
       return res.status(HTTP_STATUS.NOT_FOUND).json({
@@ -28,7 +42,22 @@ export const getShopSettings = async (req, res, next) => {
 
 export const updateShopSettings = async (req, res, next) => {
   try {
-    const shopId = req.user.shopId;
+    let shopId = req.user.shopId;
+    console.log('[updateShopSettings] Incoming shopId from user:', shopId);
+
+    // Resolve Shop ID to UUID if needed
+    if (shopId && isShopId(shopId)) {
+      console.log('[updateShopSettings] Shop ID detected, resolving to UUID');
+      const resolvedShopId = await resolveShopId(shopId);
+      if (!resolvedShopId) {
+        return res.status(HTTP_STATUS.NOT_FOUND).json({
+          message: 'Shop not found',
+        });
+      }
+      shopId = resolvedShopId;
+      console.log('[updateShopSettings] Resolved UUID:', shopId);
+    }
+
     const updates = req.body;
 
     const shopSettings = await updateShopSettingsDB(shopId, updates);

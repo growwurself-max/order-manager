@@ -10,13 +10,28 @@ import {
 } from '../services/supabase.service.js';
 import { uploadImage, deleteImage } from '../services/image.service.js';
 import { menuItemToDB, toSnakeCase } from '../utils/mapping.js';
-import { getShopByIdentifier, validateShopIdFormat } from '../utils/generateShopId.js';
+import { getShopByIdentifier, validateShopIdFormat, isShopId } from '../utils/generateShopId.js';
 import { resolveShopId } from '../utils/resolveShopId.js';
 import { AppError } from '../utils/AppError.js';
 
 export const createMenu = async (req, res, next) => {
   try {
-    const shopId = req.user.shopId;
+    let shopId = req.user.shopId;
+    console.log('[createMenu] Incoming shopId from user:', shopId);
+
+    // Resolve Shop ID to UUID if needed
+    if (shopId && isShopId(shopId)) {
+      console.log('[createMenu] Shop ID detected, resolving to UUID');
+      const resolvedShopId = await resolveShopId(shopId);
+      if (!resolvedShopId) {
+        return res.status(HTTP_STATUS.NOT_FOUND).json({
+          message: 'Shop not found',
+        });
+      }
+      shopId = resolvedShopId;
+      console.log('[createMenu] Resolved UUID:', shopId);
+    }
+
     const { imageData, ...menuData } = req.body;
 
     if (imageData) {

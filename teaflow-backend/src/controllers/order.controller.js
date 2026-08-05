@@ -9,14 +9,14 @@ import {
   getTodayStats,
   getAllOrdersForExport,
   archiveCompletedOrders,
-  getActiveOrderByCustomerPhone,
   deleteArchivedOrders,
-  recallCustomer,
+  getActiveOrderByCustomerPhone,
   getRecallStats,
   attachRecallFields,
 } from '../services/order.service.js';
 import { updatePaymentStatus as updatePaymentStatusDB, getFirstActiveShop } from '../services/supabase.service.js';
 import { resolveShopId } from '../utils/resolveShopId.js';
+import { isShopId } from '../utils/generateShopId.js';
 
 export const placeOrder = async (req, res, next) => {
   try {
@@ -85,7 +85,22 @@ export const getOrderStatus = async (req, res, next) => {
 
 export const getShopActiveOrders = async (req, res, next) => {
   try {
-    const shopId = req.user.shopId;
+    let shopId = req.user.shopId;
+    console.log('[getShopActiveOrders] Incoming shopId from user:', shopId);
+
+    // Resolve Shop ID to UUID if needed
+    if (shopId && isShopId(shopId)) {
+      console.log('[getShopActiveOrders] Shop ID detected, resolving to UUID');
+      const resolvedShopId = await resolveShopId(shopId);
+      if (!resolvedShopId) {
+        return res.status(HTTP_STATUS.NOT_FOUND).json({
+          message: 'Shop not found',
+        });
+      }
+      shopId = resolvedShopId;
+      console.log('[getShopActiveOrders] Resolved UUID:', shopId);
+    }
+
     console.log('Fetching active orders for shopId:', shopId);
     console.log('User:', req.user);
     const orders = await getActiveOrders(shopId);
@@ -131,7 +146,22 @@ export const updateStatus = async (req, res, next) => {
 
 export const getShopOrders = async (req, res, next) => {
   try {
-    const shopId = req.user.shopId;
+    let shopId = req.user.shopId;
+    console.log('[getShopOrders] Incoming shopId from user:', shopId);
+
+    // Resolve Shop ID to UUID if needed
+    if (shopId && isShopId(shopId)) {
+      console.log('[getShopOrders] Shop ID detected, resolving to UUID');
+      const resolvedShopId = await resolveShopId(shopId);
+      if (!resolvedShopId) {
+        return res.status(HTTP_STATUS.NOT_FOUND).json({
+          message: 'Shop not found',
+        });
+      }
+      shopId = resolvedShopId;
+      console.log('[getShopOrders] Resolved UUID:', shopId);
+    }
+
     const filters = req.query;
 
     const orders = await getOrdersByShopId(shopId, filters);
@@ -148,7 +178,22 @@ export const getShopOrders = async (req, res, next) => {
 
 export const getDashboardStats = async (req, res, next) => {
   try {
-    const shopId = req.user.shopId;
+    let shopId = req.user.shopId;
+    console.log('[getDashboardStats] Incoming shopId from user:', shopId);
+
+    // Resolve Shop ID to UUID if needed
+    if (shopId && isShopId(shopId)) {
+      console.log('[getDashboardStats] Shop ID detected, resolving to UUID');
+      const resolvedShopId = await resolveShopId(shopId);
+      if (!resolvedShopId) {
+        return res.status(HTTP_STATUS.NOT_FOUND).json({
+          message: 'Shop not found',
+        });
+      }
+      shopId = resolvedShopId;
+      console.log('[getDashboardStats] Resolved UUID:', shopId);
+    }
+
     const stats = await getTodayStats(shopId);
 
     res.status(HTTP_STATUS.OK).json({
@@ -243,7 +288,22 @@ export const exportOrders = async (req, res, next) => {
 
 export const archiveOrders = async (req, res, next) => {
   try {
-    const shopId = req.user.shopId;
+    let shopId = req.user.shopId;
+    console.log('[archiveOrders] Incoming shopId from user:', shopId);
+
+    // Resolve Shop ID to UUID if needed
+    if (shopId && isShopId(shopId)) {
+      console.log('[archiveOrders] Shop ID detected, resolving to UUID');
+      const resolvedShopId = await resolveShopId(shopId);
+      if (!resolvedShopId) {
+        return res.status(HTTP_STATUS.NOT_FOUND).json({
+          message: 'Shop not found',
+        });
+      }
+      shopId = resolvedShopId;
+      console.log('[archiveOrders] Resolved UUID:', shopId);
+    }
+
     const result = await archiveCompletedOrders(shopId);
 
     res.status(HTTP_STATUS.OK).json({
@@ -259,14 +319,27 @@ export const archiveOrders = async (req, res, next) => {
 
 export const deleteArchivedOrdersController = async (req, res, next) => {
   try {
-    const shopId = req.user.shopId;
+    let shopId = req.user.shopId;
+    console.log('[deleteArchivedOrdersController] Incoming shopId from user:', shopId);
+
+    // Resolve Shop ID to UUID if needed
+    if (shopId && isShopId(shopId)) {
+      console.log('[deleteArchivedOrdersController] Shop ID detected, resolving to UUID');
+      const resolvedShopId = await resolveShopId(shopId);
+      if (!resolvedShopId) {
+        return res.status(HTTP_STATUS.NOT_FOUND).json({
+          message: 'Shop not found',
+        });
+      }
+      shopId = resolvedShopId;
+      console.log('[deleteArchivedOrdersController] Resolved UUID:', shopId);
+    }
+
     const result = await deleteArchivedOrders(shopId);
 
     res.status(HTTP_STATUS.OK).json({
       message: 'Archived orders deleted successfully',
-      data: {
-        deletedCount: result.deletedCount,
-      },
+      data: result,
     });
   } catch (error) {
     next(error);
@@ -358,7 +431,22 @@ export const recallCustomerController = async (req, res, next) => {
 
 export const getRecallStatsController = async (req, res, next) => {
   try {
-    const shopId = req.user.shopId;
+    let shopId = req.user.shopId;
+    console.log('[getRecallStatsController] Incoming shopId from user:', shopId);
+
+    // Resolve Shop ID to UUID if needed
+    if (shopId && isShopId(shopId)) {
+      console.log('[getRecallStatsController] Shop ID detected, resolving to UUID');
+      const resolvedShopId = await resolveShopId(shopId);
+      if (!resolvedShopId) {
+        return res.status(HTTP_STATUS.NOT_FOUND).json({
+          message: 'Shop not found',
+        });
+      }
+      shopId = resolvedShopId;
+      console.log('[getRecallStatsController] Resolved UUID:', shopId);
+    }
+
     const stats = await getRecallStats(shopId);
 
     res.status(HTTP_STATUS.OK).json({

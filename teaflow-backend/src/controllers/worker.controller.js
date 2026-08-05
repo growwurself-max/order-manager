@@ -8,6 +8,8 @@ import {
   updateWorker as updateWorkerDB,
   deleteWorker as deleteWorkerDB,
 } from '../services/supabase.service.js';
+import { isShopId } from '../utils/generateShopId.js';
+import { resolveShopId } from '../utils/resolveShopId.js';
 
 // Helper to check if username already exists
 const findWorkerByUsernameForCheck = async (username) => {
@@ -23,7 +25,22 @@ const findWorkerByUsernameForCheck = async (username) => {
 
 export const createWorker = async (req, res, next) => {
   try {
-    const shopId = req.user.shopId;
+    let shopId = req.user.shopId;
+    console.log('[createWorker] Incoming shopId from user:', shopId);
+
+    // Resolve Shop ID to UUID if needed
+    if (shopId && isShopId(shopId)) {
+      console.log('[createWorker] Shop ID detected, resolving to UUID');
+      const resolvedShopId = await resolveShopId(shopId);
+      if (!resolvedShopId) {
+        return res.status(HTTP_STATUS.NOT_FOUND).json({
+          message: 'Shop not found',
+        });
+      }
+      shopId = resolvedShopId;
+      console.log('[createWorker] Resolved UUID:', shopId);
+    }
+
     const { username, name, password, pin } = req.body;
 
     // Check if username already exists
@@ -56,7 +73,22 @@ export const createWorker = async (req, res, next) => {
 
 export const getWorkers = async (req, res, next) => {
   try {
-    const shopId = req.user.shopId;
+    let shopId = req.user.shopId;
+    console.log('[getWorkers] Incoming shopId from user:', shopId);
+
+    // Resolve Shop ID to UUID if needed
+    if (shopId && isShopId(shopId)) {
+      console.log('[getWorkers] Shop ID detected, resolving to UUID');
+      const resolvedShopId = await resolveShopId(shopId);
+      if (!resolvedShopId) {
+        return res.status(HTTP_STATUS.NOT_FOUND).json({
+          message: 'Shop not found',
+        });
+      }
+      shopId = resolvedShopId;
+      console.log('[getWorkers] Resolved UUID:', shopId);
+    }
+
     const workers = await getWorkersByShopIdDB(shopId);
 
     res.status(HTTP_STATUS.OK).json({
@@ -72,7 +104,21 @@ export const getWorkers = async (req, res, next) => {
 export const getWorkerById = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const shopId = req.user.shopId;
+    let shopId = req.user.shopId;
+    console.log('[getWorkerById] Incoming shopId from user:', shopId);
+
+    // Resolve Shop ID to UUID if needed
+    if (shopId && isShopId(shopId)) {
+      console.log('[getWorkerById] Shop ID detected, resolving to UUID');
+      const resolvedShopId = await resolveShopId(shopId);
+      if (!resolvedShopId) {
+        return res.status(HTTP_STATUS.NOT_FOUND).json({
+          message: 'Shop not found',
+        });
+      }
+      shopId = resolvedShopId;
+      console.log('[getWorkerById] Resolved UUID:', shopId);
+    }
 
     const worker = await getWorkerByIdDB(id, shopId);
 
@@ -94,7 +140,22 @@ export const getWorkerById = async (req, res, next) => {
 export const updateWorker = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const shopId = req.user.shopId;
+    let shopId = req.user.shopId;
+    console.log('[updateWorker] Incoming shopId from user:', shopId);
+
+    // Resolve Shop ID to UUID if needed
+    if (shopId && isShopId(shopId)) {
+      console.log('[updateWorker] Shop ID detected, resolving to UUID');
+      const resolvedShopId = await resolveShopId(shopId);
+      if (!resolvedShopId) {
+        return res.status(HTTP_STATUS.NOT_FOUND).json({
+          message: 'Shop not found',
+        });
+      }
+      shopId = resolvedShopId;
+      console.log('[updateWorker] Resolved UUID:', shopId);
+    }
+
     const updates = req.body;
 
     const worker = await updateWorkerDB(id, shopId, updates);
@@ -117,7 +178,21 @@ export const updateWorker = async (req, res, next) => {
 export const deleteWorker = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const shopId = req.user.shopId;
+    let shopId = req.user.shopId;
+    console.log('[deleteWorker] Incoming shopId from user:', shopId);
+
+    // Resolve Shop ID to UUID if needed
+    if (shopId && isShopId(shopId)) {
+      console.log('[deleteWorker] Shop ID detected, resolving to UUID');
+      const resolvedShopId = await resolveShopId(shopId);
+      if (!resolvedShopId) {
+        return res.status(HTTP_STATUS.NOT_FOUND).json({
+          message: 'Shop not found',
+        });
+      }
+      shopId = resolvedShopId;
+      console.log('[deleteWorker] Resolved UUID:', shopId);
+    }
 
     await deleteWorkerDB(id, shopId);
 

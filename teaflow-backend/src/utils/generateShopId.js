@@ -31,6 +31,16 @@ export function getShopIdentifierFromRow(shop) {
 }
 
 /**
+ * Check if a value is a Shop ID (not UUID)
+ * @param {string} value - Value to check
+ * @returns {boolean} True if it's a Shop ID format
+ */
+export function isShopId(value) {
+  if (!value || typeof value !== 'string') return false;
+  return validateShopIdFormat(value.trim());
+}
+
+/**
  * Generate a unique sequential Shop ID in format: S#### (e.g., S1001, S1002)
  * @returns {Promise<string>} Unique shop identifier
  */
@@ -71,8 +81,8 @@ export async function generateShopId() {
  * @returns {boolean} True if valid format
  */
 export function validateShopIdFormat(shopId) {
-  // Format: S followed by 4 or more digits (e.g., S1001, S1002)
-  return /^S\d{4,}$/.test(shopId);
+  // Format: S or SHA followed by 4 or more digits (e.g., S1001, SHA1001)
+  return /^S(HA)?\d{4,}$/.test(shopId);
 }
 
 /**
