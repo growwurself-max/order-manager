@@ -4,7 +4,7 @@ import { api } from '../services/api';
 const OrderNotificationContext = createContext(null);
 
 const READY_ORDERS_KEY = 'teaflow_ready_orders';
-const API_BASE = (api.defaults.baseURL || 'https://ordermanager-backend-30x2.onrender.com').replace(/\/$/, '');
+const API_BASE = (api.defaults.baseURL || 'https://ordermanager-u5vu.onrender.com').replace(/\/$/, '');
 
 function createAudioContext(audioContextRef) {
   if (!audioContextRef.current || audioContextRef.current.state === 'closed') {
@@ -63,6 +63,41 @@ function playLoudAlert(audioContextRef) {
     siren.stop(ctx.currentTime + 5);
   } catch (e) {
     console.warn('Audio playback failed:', e.message);
+  }
+}
+
+function playWorkerNewOrderSound(audioContextRef) {
+  try {
+    const ctx = createAudioContext(audioContextRef);
+    if (!ctx) return;
+    ctx.resume().catch(() => {});
+
+    const masterGain = ctx.createGain();
+    masterGain.gain.setValueAtTime(0.3, ctx.currentTime);
+    masterGain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 2.5);
+    masterGain.connect(ctx.destination);
+
+    // Professional 2-3 second notification sound
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(880, ctx.currentTime); // A5
+    osc.frequency.setValueAtTime(1108.73, ctx.currentTime + 0.2); // C#6
+    osc.frequency.setValueAtTime(1318.51, ctx.currentTime + 0.4); // E6
+    
+    gain.gain.setValueAtTime(0, ctx.currentTime);
+    gain.gain.linearRampToValueAtTime(0.3, ctx.currentTime + 0.1);
+    gain.gain.setValueAtTime(0.3, ctx.currentTime + 0.5);
+    gain.gain.linearRampToValueAtTime(0.2, ctx.currentTime + 1.0);
+    gain.gain.linearRampToValueAtTime(0.1, ctx.currentTime + 1.5);
+    gain.gain.linearRampToValueAtTime(0.01, ctx.currentTime + 2.5);
+    
+    osc.connect(gain);
+    gain.connect(masterGain);
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + 2.5);
+  } catch (e) {
+    console.warn('Worker notification sound failed:', e.message);
   }
 }
 
@@ -266,6 +301,7 @@ export function OrderNotificationProvider({ children }) {
     dismissPopup: dismissPopup,
     toggleMute: toggleMute,
     clearReadyOrder: clearReadyOrder,
+    playWorkerNewOrderSound: () => playWorkerNewOrderSound(audioContextRef),
   };
 
   return React.createElement(

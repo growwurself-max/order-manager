@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { api, setRoleSession, clearRoleSession } from '../../services/api';
 import { useToast } from '../../context/ToastContext';
+import { useOrderNotification } from '../../context/OrderNotificationContext';
 
 export default function WorkerHome() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -31,10 +32,10 @@ export default function WorkerHome() {
     };
   }, [isLoggedIn]);
 
-  // Notification sounds disabled for worker page - only customer tracking page should play sounds
+  // Worker new order notification sound - plays once per new order
   const playNotificationSound = useCallback(() => {
-    // No-op - workers should not hear notification sounds
-  }, []);
+    playWorkerNewOrderSound();
+  }, [playWorkerNewOrderSound]);
 
   const startPolling = () => {
     if (pollingRef.current) clearInterval(pollingRef.current);
@@ -44,16 +45,17 @@ export default function WorkerHome() {
         console.log('Polling orders response:', response.data);
         const newOrders = Array.isArray(response.data.data) ? response.data.data : [];
         setOrders(prev => {
-          // Check for new orders
-          const hasNewOrders = newOrders.length > prev.length;
-          if (hasNewOrders) {
-            const newOrderIds = newOrders.filter(
-              n => !prev.some(o => o._id === n._id)
-            );
-            if (newOrderIds.length > 0) {
-              playNotificationSound();
-              showToast(`${newOrderIds.length} new order(s) received!`, 'info');
-            }
+          // Check for new orders (not status updates)
+          const newOrderIds = newOrders.filter(
+            n => !processedOrderIds.current.has(n._id)
+          );
+          
+          if (newOrderIds.length > 0) {
+            // Mark these orders as processed
+            newOrderIds.forEach(order => processedOrderIds.current.add(order._id));
+            // Play sound once for new orders only
+            playNotificationSound();
+            showToast(`${newOrderIds.length} new order(s) received!`, 'info');
           }
           
           // Merge updated orders: API data takes precedence over local state
@@ -91,6 +93,10 @@ export default function WorkerHome() {
       const ordersData = response.data.data || response.data || [];
       console.log('Orders data:', ordersData);
       setOrders(Array.isArray(ordersData) ? ordersData : []);
+      // Mark initial orders as processed so they don't trigger notification sound
+      Array.isArray(ordersData) && ordersData.forEach(order => {
+        processedOrderIds.current.add(order._id);
+      });
     } catch (err) {
       console.error('Fetch orders error:', err);
       setError(err.response?.data?.message || 'Failed to fetch orders');
