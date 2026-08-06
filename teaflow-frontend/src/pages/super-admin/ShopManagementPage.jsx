@@ -451,7 +451,6 @@ export default function ShopManagementPage() {
                     </div>
                   </>
                 )}
-                </div>
                 <div>
                   <label className="block text-xs font-medium text-slate-400 mb-1">Subscription Plan</label>
                   <select value={shopForm.subscriptionPlan} onChange={(e) => setShopForm({ ...shopForm, subscriptionPlan: e.target.value })} className="w-full px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white focus:outline-none focus:border-indigo-500">
