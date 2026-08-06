@@ -33,12 +33,19 @@ export const createMenu = async (req, res, next) => {
     }
 
     const { imageData, ...menuData } = req.body;
+    console.log('[createMenu] Image data present:', !!imageData);
+    console.log('[createMenu] Image data type:', typeof imageData);
+    console.log('[createMenu] Image data length:', imageData?.length || 0);
 
     if (imageData) {
       try {
+        console.log('[createMenu] Starting image upload...');
         menuData.imageUrl = await uploadImage(imageData, `teaflow/menu/${shopId}`);
+        console.log('[createMenu] Image upload successful:', menuData.imageUrl);
       } catch (err) {
-        throw new AppError('Failed to upload image. Please check Cloudinary configuration.', HTTP_STATUS.BAD_REQUEST);
+        console.error('[createMenu] Image upload error:', err);
+        console.error('[createMenu] Error details:', JSON.stringify(err, null, 2));
+        throw new AppError(`Failed to upload image: ${err.message}`, HTTP_STATUS.BAD_REQUEST);
       }
     }
 
@@ -52,6 +59,7 @@ export const createMenu = async (req, res, next) => {
       data: addIdAlias(menuItem),
     });
   } catch (error) {
+    console.error('[createMenu] General error:', error);
     next(error);
   }
 };
@@ -117,6 +125,9 @@ export const updateMenu = async (req, res, next) => {
   try {
     const { id } = req.params;
     const { imageData, removeImage, ...updates } = req.body;
+    console.log('[updateMenu] Updating menu item:', id);
+    console.log('[updateMenu] Image data present:', !!imageData);
+    console.log('[updateMenu] Remove image flag:', removeImage);
 
     const existingItem = await getMenuById(id);
     if (!existingItem) {
@@ -127,20 +138,26 @@ export const updateMenu = async (req, res, next) => {
 
     if (removeImage) {
       if (existingItem.image_url) {
+        console.log('[updateMenu] Deleting existing image:', existingItem.image_url);
         await deleteImage(existingItem.image_url);
       }
       updates.imageUrl = null;
     } else if (imageData) {
       if (existingItem.image_url) {
+        console.log('[updateMenu] Deleting old image before upload:', existingItem.image_url);
         await deleteImage(existingItem.image_url);
       }
       try {
+        console.log('[updateMenu] Starting new image upload...');
         updates.imageUrl = await uploadImage(
           imageData,
           `teaflow/menu/${existingItem.shop_id}`
         );
+        console.log('[updateMenu] New image upload successful:', updates.imageUrl);
       } catch (err) {
-        throw new AppError('Failed to upload image. Please check Cloudinary configuration.', HTTP_STATUS.BAD_REQUEST);
+        console.error('[updateMenu] Image upload error:', err);
+        console.error('[updateMenu] Error details:', JSON.stringify(err, null, 2));
+        throw new AppError(`Failed to upload image: ${err.message}`, HTTP_STATUS.BAD_REQUEST);
       }
     }
 
@@ -160,6 +177,7 @@ export const updateMenu = async (req, res, next) => {
       data: addIdAlias(menuItem),
     });
   } catch (error) {
+    console.error('[updateMenu] General error:', error);
     next(error);
   }
 };

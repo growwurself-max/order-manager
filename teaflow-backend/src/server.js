@@ -60,7 +60,7 @@ const corsOptions = {
 };
 
 app.use(cors(corsOptions));
-app.use(express.json({ limit: '10mb' }));
+app.use(express.json({ limit: '50mb' })); // Increased for large image uploads
 app.use(logger);
 
 // Rate limiting: only restrict auth login and general API separately
