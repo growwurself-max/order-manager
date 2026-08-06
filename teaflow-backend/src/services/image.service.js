@@ -37,14 +37,39 @@ const extractPublicId = (imageUrl) => {
 };
 
 export const uploadImage = async (base64Data, folder = 'teaflow/menu') => {
-  const result = await cloudinary.uploader.upload(base64Data, {
-    folder,
-    resource_type: 'image',
-    transformation: [
-      { quality: 'auto', fetch_format: 'auto', width: 1200, crop: 'limit' },
-    ],
-  });
-  return result.secure_url;
+  try {
+    console.log('[Image Upload] Starting upload to folder:', folder);
+    
+    // Validate base64 data
+    if (!base64Data || typeof base64Data !== 'string') {
+      throw new Error('Invalid image data provided');
+    }
+
+    if (!base64Data.startsWith('data:image/')) {
+      throw new Error('Invalid image format. Expected base64 image data');
+    }
+
+    const result = await cloudinary.uploader.upload(base64Data, {
+      folder,
+      resource_type: 'image',
+      transformation: [
+        { quality: 'auto', fetch_format: 'auto', width: 1200, crop: 'limit' },
+      ],
+      overwrite: false,
+    });
+    
+    console.log('[Image Upload] Upload successful:', result.public_id);
+    return result.secure_url;
+  } catch (error) {
+    console.error('[Image Upload] Error:', error.message);
+    console.error('[Image Upload] Details:', JSON.stringify(error, null, 2));
+    
+    if (error.http_code) {
+      throw new Error(`Cloudinary upload failed (HTTP ${error.http_code}): ${error.message}`);
+    }
+    
+    throw new Error(`Failed to upload image: ${error.message}`);
+  }
 };
 
 export const deleteImage = async (imageUrl) => {
@@ -54,9 +79,12 @@ export const deleteImage = async (imageUrl) => {
   if (!publicId) return;
 
   try {
+    console.log('[Image Delete] Deleting:', publicId);
     await cloudinary.uploader.destroy(publicId);
+    console.log('[Image Delete] Delete successful');
   } catch (err) {
-    console.error('Failed to delete Cloudinary image:', publicId, err.message);
+    console.error('[Image Delete] Failed to delete Cloudinary image:', publicId, err.message);
+    // Don't throw error - deletion failures shouldn't block the main operation
   }
 };
 
