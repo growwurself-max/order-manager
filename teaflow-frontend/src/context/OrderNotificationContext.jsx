@@ -119,7 +119,8 @@ export function OrderNotificationProvider({ children }) {
     const notificationKey = `${type}:${orderId || orderNumber || 'generic'}`;
 
     if (!orderId && !orderNumber) return;
-    if (notifiedOrderIds.current.has(notificationKey)) return;
+    // Only deduplicate 'order_ready' notifications. Recall notifications must replay every time.
+    if (type === 'order_ready' && notifiedOrderIds.current.has(notificationKey)) return;
 
     notifiedOrderIds.current.add(notificationKey);
 
