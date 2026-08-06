@@ -138,4 +138,59 @@ export const setupOrderRealtimeSubscription = () => {
   return channel;
 };
 
+/**
+ * Broadcast shop status changes to all connected SSE clients
+ */
+export const broadcastShopStatus = (shopId, statusData) => {
+  const message = `data: ${JSON.stringify({ type: 'shop_status', shopId, ...statusData })}\n\n`;
+  
+  // Broadcast to all connected clients
+  for (const [phone, clients] of sseClients.entries()) {
+    for (const client of clients) {
+      try {
+        client.write(message);
+      } catch (e) {
+        clients.delete(client);
+      }
+    }
+    if (clients.size === 0) {
+      sseClients.delete(phone);
+    }
+  }
+};
+
+/**
+ * Subscribe to Supabase Realtime for shop status changes
+ * This will broadcast shop open/closed and worker availability changes
+ */
+export const setupShopStatusRealtimeSubscription = () => {
+  const channel = supabase
+    .channel('shop-status-realtime')
+    .on(
+      'postgres_changes',
+      {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'shop_settings',
+      },
+      async (payload) => {
+        const shop = payload.new;
+        const oldShop = payload.old;
+        
+        // Only broadcast if relevant fields changed
+        if (oldShop.is_open_for_orders !== shop.is_open_for_orders || 
+            oldShop.workers_available !== shop.workers_available) {
+          broadcastShopStatus(shop.id, {
+            isOpenForOrders: shop.is_open_for_orders,
+            workersAvailable: shop.workers_available,
+          });
+        }
+      }
+    )
+    .subscribe();
+
+  console.log('Supabase Realtime subscription active for shop status changes');
+  return channel;
+};
+
 export default router;

@@ -27,6 +27,7 @@ export default function CustomerHome() {
   const [manualShopId, setManualShopId] = useState('');
   const [shopValidating, setShopValidating] = useState(false);
   const [shopName, setShopName] = useState('');
+  const [shopStatus, setShopStatus] = useState({ isOpenForOrders: true, workersAvailable: true });
   const [menuItems, setMenuItems] = useState([]);
   const [cart, setCart] = useState([]);
   const [orderResult, setOrderResult] = useState(null);
@@ -106,6 +107,33 @@ export default function CustomerHome() {
     return () => disconnectFromOrderEvents();
   }, [customerInfo.phone, connectToOrderEvents, disconnectFromOrderEvents]);
 
+  // Listen for shop status updates
+  useEffect(() => {
+    const handleShopStatusEvent = (event) => {
+      const payload = event.detail || {};
+      if (payload.type === 'shop_status') {
+        setShopStatus({
+          isOpenForOrders: payload.isOpenForOrders !== false,
+          workersAvailable: payload.workersAvailable !== false,
+        });
+      }
+    };
+
+    window.addEventListener('shop-status-update', handleShopStatusEvent);
+    
+    // Also poll for shop status updates periodically as fallback
+    const shopStatusInterval = setInterval(() => {
+      if (step === 'menu' && shopId) {
+        fetchShopStatus();
+      }
+    }, 30000); // Check every 30 seconds
+
+    return () => {
+      window.removeEventListener('shop-status-update', handleShopStatusEvent);
+      clearInterval(shopStatusInterval);
+    };
+  }, [step, shopId]);
+
   // Start polling when we have tracking orders
   useEffect(() => {
     if (step === 'track' && trackingOrders.length > 0) {
@@ -136,6 +164,7 @@ export default function CustomerHome() {
   useEffect(() => {
     if (step === 'menu' && menuItems.length === 0) {
       fetchMenu();
+      fetchShopStatus();
     }
   }, [step]);
 
@@ -188,6 +217,22 @@ export default function CustomerHome() {
       setError(err.response?.data?.message || 'Failed to load menu. Please try again.');
     } finally {
       setMenuLoading(false);
+    }
+  };
+
+  const fetchShopStatus = async () => {
+    if (!shopId) return;
+    try {
+      const response = await api.get(`/api/shop/status/${shopId}`);
+      const statusData = response.data.data;
+      setShopStatus({
+        isOpenForOrders: statusData.isOpenForOrders !== false,
+        workersAvailable: statusData.workersAvailable !== false,
+      });
+    } catch (err) {
+      console.error('Shop status fetch error:', err);
+      // Default to open if fetch fails
+      setShopStatus({ isOpenForOrders: true, workersAvailable: true });
     }
   };
 
@@ -758,6 +803,51 @@ export default function CustomerHome() {
             exit="exit"
             className="max-w-2xl mx-auto px-6 pt-8"
           >
+            {/* Shop Status Banners */}
+            <div className="space-y-3 mb-6">
+              {!shopStatus.isOpenForOrders && (
+                <motion.div
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-center gap-3"
+                >
+                  <span className="text-2xl">🔴</span>
+                  <div>
+                    <p className="font-semibold text-red-800">Shop Closed</p>
+                    <p className="text-sm text-red-600">This shop is currently closed. Please visit again during business hours.</p>
+                  </div>
+                </motion.div>
+              )}
+              
+              {!shopStatus.workersAvailable && shopStatus.isOpenForOrders && (
+                <motion.div
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 flex items-center gap-3"
+                >
+                  <span className="text-2xl">⚠️</span>
+                  <div>
+                    <p className="font-semibold text-yellow-800">Staff Currently Unavailable</p>
+                    <p className="text-sm text-yellow-600">Orders may take longer to prepare.</p>
+                  </div>
+                </motion.div>
+              )}
+
+              {shopStatus.isOpenForOrders && shopStatus.workersAvailable && (
+                <motion.div
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="bg-green-50 border border-green-200 rounded-lg p-4 flex items-center gap-3"
+                >
+                  <span className="text-2xl">🟢</span>
+                  <div>
+                    <p className="font-semibold text-green-800">Shop Open</p>
+                    <p className="text-sm text-green-600">Orders can be placed normally.</p>
+                  </div>
+                </motion.div>
+              )}
+            </div>
+
             <div className="flex items-center justify-between mb-6">
               <div>
                 <h2 className="text-2xl sm:text-3xl font-bold text-gray-900">Our Menu</h2>
@@ -856,9 +946,14 @@ export default function CustomerHome() {
                                 whileHover={{ scale: 1.02 }}
                                 whileTap={{ scale: 0.98 }}
                                 onClick={() => addToCart(item)}
-                                className="w-full sm:flex-1 min-h-[44px] bg-gradient-to-r from-amber-500 to-orange-500 text-white px-4 py-3 rounded-xl font-semibold shadow-md"
+                                disabled={!shopStatus.isOpenForOrders}
+                                className={`w-full sm:flex-1 min-h-[44px] px-4 py-3 rounded-xl font-semibold shadow-md ${
+                                  shopStatus.isOpenForOrders 
+                                    ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white' 
+                                    : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                                }`}
                               >
-                                Add to Cart
+                                {shopStatus.isOpenForOrders ? 'Add to Cart' : 'Shop Closed'}
                               </motion.button>
                             )}
                           </div>
@@ -958,10 +1053,14 @@ export default function CustomerHome() {
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                   onClick={placeOrder}
-                  disabled={loading}
-                  className="min-h-[44px] w-full bg-gradient-to-r from-amber-500 to-orange-500 text-white py-3 sm:py-4 rounded-2xl text-base sm:text-lg font-semibold shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={loading || !shopStatus.isOpenForOrders}
+                  className={`min-h-[44px] w-full py-3 sm:py-4 rounded-2xl text-base sm:text-lg font-semibold shadow-lg ${
+                    loading || !shopStatus.isOpenForOrders
+                      ? 'bg-gray-300 text-gray-500 cursor-not-allowed opacity-50'
+                      : 'bg-gradient-to-r from-amber-500 to-orange-500 text-white'
+                  }`}
                 >
-                  {loading ? 'Placing Order...' : 'Place Order'}
+                  {loading ? 'Placing Order...' : !shopStatus.isOpenForOrders ? 'Shop Closed' : 'Place Order'}
                 </motion.button>
               </>
             )}

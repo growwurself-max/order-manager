@@ -15,7 +15,7 @@ import {
   attachRecallFields,
   recallCustomer,
 } from '../services/order.service.js';
-import { updatePaymentStatus as updatePaymentStatusDB, getFirstActiveShop } from '../services/supabase.service.js';
+import { updatePaymentStatus as updatePaymentStatusDB, getFirstActiveShop, getShopSettingsById } from '../services/supabase.service.js';
 import { resolveShopId } from '../utils/resolveShopId.js';
 import { isShopId } from '../utils/generateShopId.js';
 
@@ -41,6 +41,20 @@ export const placeOrder = async (req, res, next) => {
     if (!resolvedShopId) {
       return res.status(HTTP_STATUS.NOT_FOUND).json({
         message: 'Shop not found with this Shop ID',
+      });
+    }
+
+    // Check if shop is open for orders
+    const shopSettings = await getShopSettingsById(resolvedShopId);
+    if (!shopSettings) {
+      return res.status(HTTP_STATUS.NOT_FOUND).json({
+        message: 'Shop settings not found',
+      });
+    }
+
+    if (shopSettings.is_open_for_orders === false) {
+      return res.status(HTTP_STATUS.FORBIDDEN).json({
+        message: 'This shop is currently closed and not accepting orders',
       });
     }
     

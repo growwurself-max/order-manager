@@ -121,3 +121,137 @@ export const validateShopId = async (req, res, next) => {
     next(error);
   }
 };
+
+/**
+ * Get shop status (public endpoint for customers)
+ * Returns shop open/closed status and worker availability
+ */
+export const getShopStatus = async (req, res, next) => {
+  try {
+    const { shopId } = req.params;
+    let resolvedShopId = shopId;
+
+    // Resolve Shop ID to UUID if needed
+    if (shopId && isShopId(shopId)) {
+      resolvedShopId = await resolveShopId(shopId);
+      if (!resolvedShopId) {
+        return res.status(HTTP_STATUS.NOT_FOUND).json({
+          message: 'Shop not found',
+        });
+      }
+    }
+
+    const shopSettings = await getShopSettingsById(resolvedShopId);
+
+    if (!shopSettings) {
+      return res.status(HTTP_STATUS.NOT_FOUND).json({
+        message: 'Shop settings not found',
+      });
+    }
+
+    res.status(HTTP_STATUS.OK).json({
+      message: 'Shop status fetched successfully',
+      data: {
+        isOpenForOrders: shopSettings.is_open_for_orders !== false, // Default to true if null
+        workersAvailable: shopSettings.workers_available !== false, // Default to true if null
+        shopName: shopSettings.shop_name,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Update shop open/closed status (owner only)
+ */
+export const updateShopOpenStatus = async (req, res, next) => {
+  try {
+    let shopId = req.user.shopId;
+
+    // Resolve Shop ID to UUID if needed
+    if (shopId && isShopId(shopId)) {
+      const resolvedShopId = await resolveShopId(shopId);
+      if (!resolvedShopId) {
+        return res.status(HTTP_STATUS.NOT_FOUND).json({
+          message: 'Shop not found',
+        });
+      }
+      shopId = resolvedShopId;
+    }
+
+    const { isOpenForOrders } = req.body;
+
+    if (typeof isOpenForOrders !== 'boolean') {
+      return res.status(HTTP_STATUS.BAD_REQUEST).json({
+        message: 'isOpenForOrders must be a boolean',
+      });
+    }
+
+    const shopSettings = await updateShopSettingsDB(shopId, {
+      is_open_for_orders: isOpenForOrders,
+    });
+
+    if (!shopSettings) {
+      return res.status(HTTP_STATUS.NOT_FOUND).json({
+        message: 'Shop settings not found',
+      });
+    }
+
+    res.status(HTTP_STATUS.OK).json({
+      message: 'Shop open status updated successfully',
+      data: {
+        isOpenForOrders: shopSettings.is_open_for_orders,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Update worker availability status (owner only)
+ */
+export const updateWorkerAvailability = async (req, res, next) => {
+  try {
+    let shopId = req.user.shopId;
+
+    // Resolve Shop ID to UUID if needed
+    if (shopId && isShopId(shopId)) {
+      const resolvedShopId = await resolveShopId(shopId);
+      if (!resolvedShopId) {
+        return res.status(HTTP_STATUS.NOT_FOUND).json({
+          message: 'Shop not found',
+        });
+      }
+      shopId = resolvedShopId;
+    }
+
+    const { workersAvailable } = req.body;
+
+    if (typeof workersAvailable !== 'boolean') {
+      return res.status(HTTP_STATUS.BAD_REQUEST).json({
+        message: 'workersAvailable must be a boolean',
+      });
+    }
+
+    const shopSettings = await updateShopSettingsDB(shopId, {
+      workers_available: workersAvailable,
+    });
+
+    if (!shopSettings) {
+      return res.status(HTTP_STATUS.NOT_FOUND).json({
+        message: 'Shop settings not found',
+      });
+    }
+
+    res.status(HTTP_STATUS.OK).json({
+      message: 'Worker availability updated successfully',
+      data: {
+        workersAvailable: shopSettings.workers_available,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};

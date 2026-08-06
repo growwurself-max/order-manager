@@ -240,6 +240,9 @@ export function OrderNotificationProvider({ children }) {
             }
             notifiedOrderIds.current.delete(`order_ready:${orderId}`);
             notifiedOrderIds.current.delete(`order_recall:${orderId}`);
+          } else if (data.type === 'shop_status') {
+            // Broadcast shop status changes to all customers
+            window.dispatchEvent(new CustomEvent('shop-status-update', { detail: data }));
           }
         } catch (e) {}
       };

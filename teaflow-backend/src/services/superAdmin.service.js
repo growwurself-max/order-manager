@@ -369,6 +369,8 @@ export const updateShop = async (shopId, updates) => {
   if (updates.subscriptionStatus !== undefined) updateData.subscription_status = updates.subscriptionStatus;
   if (updates.trialDays !== undefined) updateData.trial_days = parseInt(updates.trialDays);
   if (updates.isActive !== undefined) updateData.is_active = updates.isActive;
+  if (updates.isOpenForOrders !== undefined) updateData.is_open_for_orders = updates.isOpenForOrders;
+  if (updates.workersAvailable !== undefined) updateData.workers_available = updates.workersAvailable;
 
   let shopIdentifierToStore = null;
 

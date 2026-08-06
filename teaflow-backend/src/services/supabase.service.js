@@ -168,6 +168,8 @@ export const getShopSettingsById = async (id) => {
   return {
     ...data,
     shop_identifier: getShopIdentifierFromRow(data) || data.shop_identifier || null,
+    is_open_for_orders: data.is_open_for_orders !== false, // Default to true if null
+    workers_available: data.workers_available !== false, // Default to true if null
   };
 };
 

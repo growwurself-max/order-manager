@@ -19,7 +19,7 @@ import menuRoutes from './routes/menu.routes.js';
 import orderRoutes from './routes/order.routes.js';
 import workerRoutes from './routes/worker.routes.js';
 import shopRoutes from './routes/shop.routes.js';
-import eventRoutes, { setupOrderRealtimeSubscription } from './routes/event.routes.js';
+import eventRoutes, { setupOrderRealtimeSubscription, setupShopStatusRealtimeSubscription } from './routes/event.routes.js';
 import superAdminRoutes from './routes/superAdmin.routes.js';
 
 const app = express();
@@ -108,6 +108,8 @@ app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
   // Initialize Supabase Realtime subscription for order status changes
   setupOrderRealtimeSubscription();
+  // Initialize Supabase Realtime subscription for shop status changes
+  setupShopStatusRealtimeSubscription();
 });
 
 app.use(notFound);

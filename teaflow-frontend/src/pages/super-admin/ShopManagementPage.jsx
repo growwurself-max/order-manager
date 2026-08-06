@@ -76,6 +76,8 @@ export default function ShopManagementPage() {
           subscriptionPlan: shopForm.subscriptionPlan,
           subscriptionStatus: editingShop.subscription_status,
           trialDays: shopForm.trialDays,
+          isOpenForOrders: shopForm.isOpenForOrders,
+          workersAvailable: shopForm.workersAvailable,
         };
         console.log('Updating shop:', editingShop.id, updates);
         await updateShop(editingShop.id, updates);
@@ -114,6 +116,8 @@ export default function ShopManagementPage() {
       streetAddress: shop.address?.street || '',
       trialDays: shop.trial_days?.toString() || '30',
       subscriptionPlan: shop.subscription_plan || 'free',
+      isOpenForOrders: shop.is_open_for_orders !== false,
+      workersAvailable: shop.workers_available !== false,
     });
     setShowShopModal(true);
   };
@@ -291,6 +295,7 @@ export default function ShopManagementPage() {
                   <th className="px-6 py-4">Shop</th>
                   <th className="px-6 py-4">Shop ID</th>
                   <th className="px-6 py-4">Owner</th>
+                  <th className="px-6 py-4">Status</th>
                   <th className="px-6 py-4">Subscription</th>
                   <th className="px-6 py-4 text-right">Actions</th>
                 </tr>
@@ -298,7 +303,7 @@ export default function ShopManagementPage() {
               <tbody className="divide-y divide-white/5">
                 {shops.length === 0 ? (
                   <tr>
-                    <td colSpan="4" className="px-6 py-12 text-center text-slate-500">No shops found</td>
+                    <td colSpan="5" className="px-6 py-12 text-center text-slate-500">No shops found</td>
                   </tr>
                 ) : (
                   shops.map((shop) => (
@@ -313,6 +318,20 @@ export default function ShopManagementPage() {
                       <td className="px-6 py-4">
                         <p className="text-sm text-white">{shop.owner?.name || 'No owner'}</p>
                         <p className="text-xs text-slate-400">{shop.owner?.email || shop.contact?.email}</p>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex gap-2">
+                          <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${
+                            shop.is_open_for_orders !== false ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400'
+                          }`}>
+                            {shop.is_open_for_orders !== false ? '🟢 Open' : '🔴 Closed'}
+                          </span>
+                          <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${
+                            shop.workers_available !== false ? 'bg-blue-500/10 text-blue-400' : 'bg-yellow-500/10 text-yellow-400'
+                          }`}>
+                            {shop.workers_available !== false ? '👨‍🍳 Available' : '⚠️ Unavailable'}
+                          </span>
+                        </div>
                       </td>
                       <td className="px-6 py-4">
                         <span className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-medium ${
@@ -395,6 +414,43 @@ export default function ShopManagementPage() {
                 <div>
                   <label className="block text-xs font-medium text-slate-400 mb-1">Street Address</label>
                   <input type="text" value={shopForm.streetAddress} onChange={(e) => setShopForm({ ...shopForm, streetAddress: e.target.value })} className="w-full px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white focus:outline-none focus:border-indigo-500" />
+                </div>
+                {editingShop && (
+                  <>
+                    <div className="flex items-center gap-3 p-3 rounded-xl bg-white/5">
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center text-xl ${shopForm.isOpenForOrders ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
+                        {shopForm.isOpenForOrders ? '🟢' : '🔴'}
+                      </div>
+                      <div className="flex-1">
+                        <label className="block text-xs font-medium text-slate-400 mb-1">Shop Status</label>
+                        <select 
+                          value={shopForm.isOpenForOrders ? 'open' : 'closed'} 
+                          onChange={(e) => setShopForm({ ...shopForm, isOpenForOrders: e.target.value === 'open' })}
+                          className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white focus:outline-none focus:border-indigo-500"
+                        >
+                          <option value="open" className="bg-slate-800">Open for Orders</option>
+                          <option value="closed" className="bg-slate-800">Closed</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3 p-3 rounded-xl bg-white/5">
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center text-xl ${shopForm.workersAvailable ? 'bg-blue-500/20 text-blue-400' : 'bg-yellow-500/20 text-yellow-400'}`}>
+                        {shopForm.workersAvailable ? '👨‍🍳' : '⚠️'}
+                      </div>
+                      <div className="flex-1">
+                        <label className="block text-xs font-medium text-slate-400 mb-1">Worker Availability</label>
+                        <select 
+                          value={shopForm.workersAvailable ? 'available' : 'unavailable'} 
+                          onChange={(e) => setShopForm({ ...shopForm, workersAvailable: e.target.value === 'available' })}
+                          className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white focus:outline-none focus:border-indigo-500"
+                        >
+                          <option value="available" className="bg-slate-800">Staff Available</option>
+                          <option value="unavailable" className="bg-slate-800">Staff Unavailable</option>
+                        </select>
+                      </div>
+                    </div>
+                  </>
+                )}
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-slate-400 mb-1">Subscription Plan</label>

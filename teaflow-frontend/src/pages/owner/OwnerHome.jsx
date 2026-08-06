@@ -55,6 +55,12 @@ export default function OwnerHome() {
     allowPreorder: false,
   });
 
+  // Shop Status Form
+  const [shopStatus, setShopStatus] = useState({
+    isOpenForOrders: true,
+    workersAvailable: true,
+  });
+
   useEffect(() => {
     checkAuth();
   }, []);
@@ -191,6 +197,11 @@ export default function OwnerHome() {
         currency: data.settings?.currency || 'INR',
         allowPreorder: data.settings?.allowPreorder || false,
       });
+      // Set shop status
+      setShopStatus({
+        isOpenForOrders: data.is_open_for_orders !== false,
+        workersAvailable: data.workers_available !== false,
+      });
     } catch (err) {
       showToast('Failed to load shop settings', 'error');
     }
@@ -245,6 +256,32 @@ export default function OwnerHome() {
       showToast('Logged out successfully', 'success');
     } catch (err) {
       showToast('Logout failed', 'error');
+    }
+  };
+
+  const handleUpdateShopOpenStatus = async (isOpen) => {
+    setActionLoading(true);
+    try {
+      await api.put('/api/shop/open-status', { isOpenForOrders: isOpen });
+      setShopStatus(prev => ({ ...prev, isOpenForOrders: isOpen }));
+      showToast(`Shop is now ${isOpen ? 'open' : 'closed'} for orders`, 'success');
+    } catch (err) {
+      showToast('Failed to update shop status', 'error');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleUpdateWorkerAvailability = async (available) => {
+    setActionLoading(true);
+    try {
+      await api.put('/api/shop/worker-availability', { workersAvailable: available });
+      setShopStatus(prev => ({ ...prev, workersAvailable: available }));
+      showToast(`Workers are now ${available ? 'available' : 'unavailable'}`, 'success');
+    } catch (err) {
+      showToast('Failed to update worker availability', 'error');
+    } finally {
+      setActionLoading(false);
     }
   };
 
@@ -1085,6 +1122,67 @@ export default function OwnerHome() {
               </div>
             </div>
           )}
+
+          {/* Shop Status Section */}
+          <div className="rounded-2xl p-6 shadow-sm border" style={{ backgroundColor: 'var(--card-bg)', borderColor: 'var(--border-color)' }}>
+            <h3 className="text-lg sm:text-xl font-bold mb-4 sm:mb-6" style={{ color: 'var(--text-primary)' }}>Shop Status</h3>
+            <p className="text-xs sm:text-sm mb-4" style={{ color: 'var(--text-secondary)' }}>Control whether your shop is accepting orders and staff availability.</p>
+            
+            <div className="space-y-4">
+              {/* Shop Open/Closed Toggle */}
+              <div className="flex items-center justify-between p-4 rounded-xl" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
+                <div className="flex items-center gap-3">
+                  <div className={`w-12 h-12 rounded-full flex items-center justify-center text-2xl ${shopStatus.isOpenForOrders ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}`}>
+                    {shopStatus.isOpenForOrders ? '🟢' : '🔴'}
+                  </div>
+                  <div>
+                    <p className="font-semibold text-sm sm:text-base" style={{ color: 'var(--text-primary)' }}>Shop Status</p>
+                    <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+                      {shopStatus.isOpenForOrders ? 'Open for Orders' : 'Closed'}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => handleUpdateShopOpenStatus(!shopStatus.isOpenForOrders)}
+                  disabled={actionLoading}
+                  className={`min-h-[44px] px-4 py-2 rounded-xl font-semibold transition ${
+                    shopStatus.isOpenForOrders 
+                      ? 'bg-red-500 hover:bg-red-600 text-white' 
+                      : 'bg-green-500 hover:bg-green-600 text-white'
+                  } disabled:opacity-50 disabled:cursor-not-allowed`}
+                >
+                  {actionLoading ? 'Updating...' : (shopStatus.isOpenForOrders ? 'Close Shop' : 'Open Shop')}
+                </button>
+              </div>
+
+              {/* Worker Availability Toggle */}
+              <div className="flex items-center justify-between p-4 rounded-xl" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
+                <div className="flex items-center gap-3">
+                  <div className={`w-12 h-12 rounded-full flex items-center justify-center text-2xl ${shopStatus.workersAvailable ? 'bg-blue-100 text-blue-600' : 'bg-yellow-100 text-yellow-600'}`}>
+                    {shopStatus.workersAvailable ? '👨‍🍳' : '⚠️'}
+                  </div>
+                  <div>
+                    <p className="font-semibold text-sm sm:text-base" style={{ color: 'var(--text-primary)' }}>Worker Availability</p>
+                    <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+                      {shopStatus.workersAvailable ? 'Staff Available' : 'Staff Unavailable'}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => handleUpdateWorkerAvailability(!shopStatus.workersAvailable)}
+                  disabled={actionLoading}
+                  className={`min-h-[44px] px-4 py-2 rounded-xl font-semibold transition ${
+                    shopStatus.workersAvailable 
+                      ? 'bg-yellow-500 hover:bg-yellow-600 text-white' 
+                      : 'bg-blue-500 hover:bg-blue-600 text-white'
+                  } disabled:opacity-50 disabled:cursor-not-allowed`}
+                >
+                  {actionLoading ? 'Updating...' : (shopStatus.workersAvailable ? 'Mark Unavailable' : 'Mark Available')}
+                </button>
+              </div>
+            </div>
+          </div>
+
           {/* Theme Switcher Section */}
           <div className="rounded-2xl p-6 shadow-sm border" style={{ backgroundColor: 'var(--card-bg)', borderColor: 'var(--border-color)' }}>
             <h3 className="text-lg sm:text-xl font-bold mb-4 sm:mb-6" style={{ color: 'var(--text-primary)' }}>Theme</h3>
