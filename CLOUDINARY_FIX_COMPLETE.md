@@ -23,9 +23,9 @@
 ### Backend Server
 ✅ Running on port 5000  
 ✅ Cloudinary configuration loaded successfully  
-✅ Cloud Name: nq1wccuh  
-✅ API Key: 322215733584696  
-✅ API Secret: x3pKi5mc1VGaVqWxmt_Zq5k0D4U  
+✅ Cloud Name: ✓ Set  
+✅ API Key: ✓ Set  
+✅ API Secret: ✓ Set  
 ✅ Cloudinary connection test passed  
 ✅ Image upload test passed  
 

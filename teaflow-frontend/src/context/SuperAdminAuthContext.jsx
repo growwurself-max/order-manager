@@ -1,26 +1,18 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { api, getRoleToken, setRoleSession, clearRoleSession } from '../services/api';
+import { api, setRoleSession, clearRoleSession } from '../services/api';
 import { superAdminLogin as loginApi } from '../services/superAdminApi';
 
 const SuperAdminAuthContext = createContext(null);
 
 export const SuperAdminAuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
-  const [token, setToken] = useState(null);
   const [loading, setLoading] = useState(true);
 
   const checkAuth = useCallback(async () => {
-    const storedToken = getRoleToken('super_admin');
-    if (!storedToken) {
-      setLoading(false);
-      return;
-    }
     try {
-      const response = await api.get('/api/super-admin/stats', {
-        headers: { Authorization: `Bearer ${storedToken}` },
-      });
+      // Auth is carried by the httpOnly cookie (withCredentials).
+      const response = await api.get('/api/super-admin/stats');
       if (response.status === 200) {
-        setToken(storedToken);
         setUser({ role: 'super_admin' });
       } else {
         clearRoleSession('super_admin');
@@ -40,15 +32,14 @@ export const SuperAdminAuthProvider = ({ children }) => {
     try {
       const response = await loginApi({ email, password });
       console.log('Login API response:', response);
-      
-      const { token: newToken, user: newUser } = response.data;
-      
-      if (!newToken || !newUser) {
+
+      const { user: newUser } = response.data;
+
+      if (!newUser) {
         throw new Error('Invalid response from server');
       }
-      
-      setRoleSession('super_admin', newToken);
-      setToken(newToken);
+
+      setRoleSession('super_admin', null);
       setUser(newUser);
       return response.data;
     } catch (error) {
@@ -60,17 +51,20 @@ export const SuperAdminAuthProvider = ({ children }) => {
     }
   };
 
-  const logout = () => {
+  const logout = async () => {
+    try {
+      await api.post('/api/auth/logout');
+    } catch {
+      // Ignore logout network errors — local state is cleared regardless.
+    }
     clearRoleSession('super_admin');
-    setToken(null);
     setUser(null);
   };
 
   const value = {
     user,
-    token,
     loading,
-    isAuthenticated: !!user && !!token,
+    isAuthenticated: !!user,
     login,
     logout,
     checkAuth,

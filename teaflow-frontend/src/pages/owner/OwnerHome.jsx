@@ -1083,36 +1083,56 @@ export default function OwnerHome() {
                       const printWindow = window.open('', '_blank');
                       const qrDataUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(url)}`;
                       const shopName = shopSettings.shop_name;
-                      printWindow.document.write(`
+                      const doc = printWindow.document;
+                      doc.write(`
+                        <!DOCTYPE html>
                         <html>
                           <head>
-                            <title>${shopName} - Print QR</title>
+                            <title>Print QR</title>
                             <style>
                               body { font-family: system-ui, sans-serif; text-align: center; padding: 40px; color: #3E2723; background-color: #FDFBFA; }
                               .card { border: 2px solid #D7CCC8; padding: 30px; border-radius: 20px; max-width: 400px; margin: 0 auto; background-color: white; box-shadow: 0 8px 16px rgba(0,0,0,0.05); }
                               h1 { font-size: 26px; font-weight: 700; color: #3E2723; margin-bottom: 5px; }
                               p { font-size: 15px; color: #6d6d6d; margin-bottom: 25px; }
                               img { margin-bottom: 20px; border: 2px solid #EFEBE9; padding: 10px; border-radius: 12px; background-color: white; }
-                              .footer { font-size: 12px; color: #a0a0a0; margin-top: 20px; font-weight: 500; text-transform: uppercase; tracking-wider; }
+                              .footer { font-size: 12px; color: #a0a0a0; margin-top: 20px; font-weight: 500; text-transform: uppercase; }
                             </style>
                           </head>
-                          <body>
-                            <div class="card">
-                              <h1>${shopName}</h1>
-                              <p>Scan to Browse Menu & Order</p>
-                              <img src="${qrDataUrl}" width="250" height="250" />
-                              <div class="footer">Made by SHA</div>
-                            </div>
-                            <script>
-                              window.onload = function() {
-                                window.print();
-                                setTimeout(function() { window.close(); }, 500);
-                              };
-                            </script>
-                          </body>
+                          <body></body>
                         </html>
                       `);
-                      printWindow.document.close();
+                      doc.close();
+
+                      // Build the card with DOM APIs + textContent (shopName
+                      // is user-controlled, so never interpolate it into HTML).
+                      const card = doc.createElement('div');
+                      card.className = 'card';
+
+                      const heading = doc.createElement('h1');
+                      heading.textContent = shopName;
+
+                      const subtitle = doc.createElement('p');
+                      subtitle.textContent = 'Scan to Browse Menu & Order';
+
+                      const img = doc.createElement('img');
+                      img.src = qrDataUrl;
+                      img.width = 250;
+                      img.height = 250;
+
+                      const footer = doc.createElement('div');
+                      footer.className = 'footer';
+                      footer.textContent = 'Made by SHA';
+
+                      card.appendChild(heading);
+                      card.appendChild(subtitle);
+                      card.appendChild(img);
+                      card.appendChild(footer);
+                      doc.body.appendChild(card);
+
+                      window.setTimeout(() => {
+                        printWindow.print();
+                        window.setTimeout(() => printWindow.close(), 500);
+                      }, 250);
                     }}
                     className="w-full sm:w-auto min-h-[44px] bg-gray-700 hover:bg-gray-600 text-white px-5 py-2.5 rounded-xl font-semibold shadow-md transition flex items-center justify-center gap-2"
                   >

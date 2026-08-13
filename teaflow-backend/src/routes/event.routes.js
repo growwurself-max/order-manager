@@ -9,21 +9,41 @@ const sseClients = new Map();
 // SSE endpoint for customers to receive real-time order updates
 router.get('/order-status/:phone', (req, res) => {
   const phone = req.params.phone;
-  
-  // Set SSE headers
-  res.writeHead(200, {
+
+  // Validate phone format before accepting a connection.
+  if (!/^[\d\s-]{10,15}$/.test(phone)) {
+    return res.status(400).json({ message: 'Invalid phone number' });
+  }
+
+  // Only reflect a permitted origin (never hardcode ACAO: *).
+  const requestOrigin = req.headers.origin;
+  const allowed = String(process.env.CORS_ORIGIN || '')
+    .split(',')
+    .map((o) => o.trim())
+    .filter(Boolean);
+  const reflectsOrigin = requestOrigin && allowed.includes(requestOrigin);
+
+  const headers = {
     'Content-Type': 'text/event-stream',
     'Cache-Control': 'no-cache',
     'Connection': 'keep-alive',
-    'Access-Control-Allow-Origin': '*',
-  });
+  };
+  if (reflectsOrigin) headers['Access-Control-Allow-Origin'] = requestOrigin;
+
+  // Set SSE headers
+  res.writeHead(200, headers);
 
   // Send initial connection event
   res.write(`data: ${JSON.stringify({ type: 'connected', phone })}\n\n`);
 
-  // Store client connection
+  // Cap concurrent connections per phone to prevent abuse.
+  const MAX_CLIENTS_PER_PHONE = 5;
   if (!sseClients.has(phone)) {
     sseClients.set(phone, new Set());
+  }
+  if (sseClients.get(phone).size >= MAX_CLIENTS_PER_PHONE) {
+    res.write(`data: ${JSON.stringify({ type: 'error', message: 'Too many connections for this phone' })}\n\n`);
+    return res.end();
   }
   sseClients.get(phone).add(res);
 

@@ -1,4 +1,5 @@
 import { HTTP_STATUS } from '../utils/constants.js';
+import { setAuthCookie } from '../middleware/auth.js';
 import {
   loginSuperAdmin,
   getSuperAdminStats,
@@ -27,9 +28,12 @@ import {
 export const superAdminLogin = async (req, res, next) => {
   try {
     const { email, password } = req.body;
-    console.log('Super admin login attempt:', email);
     const result = await loginSuperAdmin(email, password);
     console.log('Super admin login successful');
+
+    if (result?.token) {
+      setAuthCookie(res, req, result.token);
+    }
 
     res.status(HTTP_STATUS.OK).json({
       message: 'Super Admin login successful',
@@ -80,7 +84,9 @@ export const postShop = async (req, res, next) => {
   try {
     console.log('=== POST SHOP CONTROLLER START ===');
     const shopData = req.body;
-    console.log('Request body:', JSON.stringify(shopData, null, 2));
+
+    // Never log credentials or full bodies.
+    console.log('Request body keys:', Object.keys(shopData));
     console.log('Request headers origin:', req.headers.origin);
     console.log('Process env FRONTEND_URL:', process.env.FRONTEND_URL);
 

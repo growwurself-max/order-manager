@@ -21,7 +21,6 @@ export const notifyCustomerRecall = async (order) => {
 
   // Base log — always works
   console.log(`[Notification] Recall triggered for Order #${orderNumber}`);
-  console.log(`[Notification] Customer: ${name} (${phone})`);
   console.log(`[Notification] Recall count: ${order.recall_count || 0}`);
 
   // ────────────────────────────────────────────

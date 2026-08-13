@@ -28,7 +28,13 @@ export const ownerLoginValidator = [
 
 export const workerPinValidator = [
   body('password').optional().trim(),
-  body('pin').optional().notEmpty().withMessage('PIN is required').trim(),
+  body('pin')
+    .optional()
+    .notEmpty()
+    .withMessage('PIN is required')
+    .matches(/^\d{4,8}$/)
+    .withMessage('PIN must be 4-8 digits')
+    .trim(),
   body().custom((value) => {
     if (!value.password && !value.pin) {
       throw new Error('Password or PIN is required');
@@ -48,32 +54,46 @@ export const createOrderValidator = [
     .optional()
     .isString()
     .withMessage('Name must be a string')
+    .isLength({ max: 120 })
+    .withMessage('Name is too long')
     .trim()
     .escape(),
-  body('items').isArray({ min: 1 }).withMessage('At least one item is required'),
+  body('items').isArray({ min: 1, max: 50 }).withMessage('At least one item is required'),
   body('items.*.menuItemId')
     .isString()
     .custom(isUUID)
     .withMessage('Invalid menu item ID format'),
   body('items.*.quantity')
-    .isInt({ min: 1 })
-    .withMessage('Quantity must be at least 1'),
+    .isInt({ min: 1, max: 99 })
+    .withMessage('Quantity must be between 1 and 99'),
   body('items.*.size').optional().isString().trim().escape(),
-  body('items.*.toppings').optional().isArray(),
-  body('notes').optional().isString().trim().escape(),
+  body('items.*.toppings').optional().isArray({ max: 20 }),
+  body('notes').optional().isString().isLength({ max: 500 }).trim().escape(),
   validateRequest,
 ];
 
 export const menuItemValidator = [
-  body('name').notEmpty().withMessage('Name is required').trim().escape(),
-  body('description').optional().isString().trim().escape(),
+  body('name')
+    .notEmpty()
+    .withMessage('Name is required')
+    .isLength({ max: 120 })
+    .withMessage('Name is too long')
+    .trim()
+    .escape(),
+  body('description')
+    .optional()
+    .isString()
+    .isLength({ max: 500 })
+    .withMessage('Description is too long')
+    .trim()
+    .escape(),
   body('category')
     .isIn(['milk-tea', 'fruit-tea', 'slush', 'specialty'])
     .withMessage('Invalid category'),
-  body('basePrice').optional().isFloat({ min: 0 }).withMessage('Base price must be a positive number'),
-  body('price').optional().isFloat({ min: 0 }).withMessage('Price must be a positive number'),
-  body('sizes').optional().isArray(),
-  body('toppings').optional().isArray(),
+  body('basePrice').optional().isFloat({ min: 0, max: 100000 }).withMessage('Base price must be a positive number'),
+  body('price').optional().isFloat({ min: 0, max: 100000 }).withMessage('Price must be a positive number'),
+  body('sizes').optional().isArray({ max: 10 }),
+  body('toppings').optional().isArray({ max: 20 }),
   body('isAvailable').optional().isBoolean(),
   body('displayOrder').optional().isInt().toFloat(),
   body('imageUrl').optional().isURL().withMessage('Invalid image URL'),
@@ -83,10 +103,32 @@ export const menuItemValidator = [
 ];
 
 export const createWorkerValidator = [
-  body('username').notEmpty().withMessage('Username is required').trim().escape(),
-  body('name').notEmpty().withMessage('Name is required').trim().escape(),
-  body('password').optional().isLength({ min: 8 }).withMessage('Password must be at least 8 characters').trim(),
-  body('pin').optional().notEmpty().withMessage('PIN is required').trim(),
+  body('username')
+    .notEmpty()
+    .withMessage('Username is required')
+    .isLength({ max: 50 })
+    .withMessage('Username is too long')
+    .trim()
+    .escape(),
+  body('name')
+    .notEmpty()
+    .withMessage('Name is required')
+    .isLength({ max: 120 })
+    .withMessage('Name is too long')
+    .trim()
+    .escape(),
+  body('password')
+    .optional()
+    .isLength({ min: 8, max: 128 })
+    .withMessage('Password must be at least 8 characters')
+    .trim(),
+  body('pin')
+    .optional()
+    .notEmpty()
+    .withMessage('PIN is required')
+    .matches(/^\d{4,8}$/)
+    .withMessage('PIN must be 4-8 digits')
+    .trim(),
   body().custom((value) => {
     if (!value.password && !value.pin) {
       throw new Error('Password or PIN is required');
@@ -101,10 +143,26 @@ export const createWorkerValidator = [
 ];
 
 export const workerValidator = [
-  body('username').optional().trim().escape(),
-  body('name').notEmpty().withMessage('Name is required').trim().escape(),
-  body('password').optional({ values: 'falsy' }).isLength({ min: 8 }).withMessage('Password must be at least 8 characters').trim(),
-  body('pin').optional({ values: 'falsy' }).notEmpty().withMessage('PIN is required').trim(),
+  body('username').optional().isLength({ max: 50 }).trim().escape(),
+  body('name')
+    .notEmpty()
+    .withMessage('Name is required')
+    .isLength({ max: 120 })
+    .withMessage('Name is too long')
+    .trim()
+    .escape(),
+  body('password')
+    .optional({ values: 'falsy' })
+    .isLength({ min: 8, max: 128 })
+    .withMessage('Password must be at least 8 characters')
+    .trim(),
+  body('pin')
+    .optional({ values: 'falsy' })
+    .notEmpty()
+    .withMessage('PIN is required')
+    .matches(/^\d{4,8}$/)
+    .withMessage('PIN must be 4-8 digits')
+    .trim(),
   body('role')
     .optional()
     .isIn(['worker'])

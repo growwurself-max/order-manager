@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Navigate } from 'react-router-dom';
-import { api, getRoleToken, clearRoleSession } from '../services/api';
+import { api, clearRoleSession } from '../services/api';
 
 const LOGIN_PATHS = {
   super_admin: '/super-admin/login',
@@ -15,16 +15,10 @@ export default function RoleProtectedRoute({ role, children }) {
     let cancelled = false;
 
     const verify = async () => {
-      const token = getRoleToken(role);
-      if (!token) {
-        setStatus('denied');
-        return;
-      }
-
       try {
-        const response = await api.get('/api/auth/profile', {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        // Auth is carried by the httpOnly cookie (withCredentials on the
+        // axios instance), so no token is needed here.
+        const response = await api.get('/api/auth/profile');
         const profileRole = response.data?.data?.role;
         if (!cancelled) setStatus(profileRole === role ? 'allowed' : 'denied');
       } catch {

@@ -32,10 +32,14 @@ export const createMenu = async (req, res, next) => {
       console.log('[createMenu] Resolved UUID:', shopId);
     }
 
-    const { imageData, ...menuData } = req.body;
-    console.log('[createMenu] Image data present:', !!imageData);
-    console.log('[createMenu] Image data type:', typeof imageData);
-    console.log('[createMenu] Image data length:', imageData?.length || 0);
+    const { imageData, ...bodyFields } = req.body;
+
+    // Whitelist fields allowed on creation (prevents mass assignment).
+    const ALLOWED_FIELDS = ['name', 'description', 'category', 'basePrice', 'price', 'sizes', 'toppings', 'isAvailable', 'displayOrder'];
+    const menuData = {};
+    for (const key of ALLOWED_FIELDS) {
+      if (bodyFields[key] !== undefined) menuData[key] = bodyFields[key];
+    }
 
     if (imageData) {
       try {
@@ -136,12 +140,32 @@ export const updateMenu = async (req, res, next) => {
       });
     }
 
+    // Authorization: menu items can only be modified by the owning shop.
+    if (existingItem.shop_id !== req.user.shopId) {
+      return res.status(HTTP_STATUS.FORBIDDEN).json({
+        message: 'Forbidden: menu item does not belong to your shop',
+      });
+    }
+
+    // Whitelist editable fields before mapping (prevents mass assignment
+    // of shop_id, is_available overrides from other shops, etc.).
+    const ALLOWED_FIELDS = ['name', 'description', 'category', 'basePrice', 'price', 'sizes', 'toppings', 'isAvailable', 'displayOrder'];
+    const safeUpdates = {};
+    for (const key of ALLOWED_FIELDS) {
+      if (updates[key] !== undefined) safeUpdates[key] = updates[key];
+    }
+    if (Object.keys(safeUpdates).length === 0 && !removeImage && !imageData) {
+      return res.status(HTTP_STATUS.BAD_REQUEST).json({
+        message: 'No valid fields provided',
+      });
+    }
+
     if (removeImage) {
       if (existingItem.image_url) {
         console.log('[updateMenu] Deleting existing image:', existingItem.image_url);
         await deleteImage(existingItem.image_url);
       }
-      updates.imageUrl = null;
+      safeUpdates.imageUrl = null;
     } else if (imageData) {
       if (existingItem.image_url) {
         console.log('[updateMenu] Deleting old image before upload:', existingItem.image_url);
@@ -149,11 +173,11 @@ export const updateMenu = async (req, res, next) => {
       }
       try {
         console.log('[updateMenu] Starting new image upload...');
-        updates.imageUrl = await uploadImage(
+        safeUpdates.imageUrl = await uploadImage(
           imageData,
           `teaflow/menu/${existingItem.shop_id}`
         );
-        console.log('[updateMenu] New image upload successful:', updates.imageUrl);
+        console.log('[updateMenu] New image upload successful:', safeUpdates.imageUrl);
       } catch (err) {
         console.error('[updateMenu] Image upload error:', err);
         console.error('[updateMenu] Error details:', JSON.stringify(err, null, 2));
@@ -162,7 +186,7 @@ export const updateMenu = async (req, res, next) => {
     }
 
     // Map camelCase from frontend to snake_case for DB
-    const dbUpdates = toSnakeCase(updates, menuItemToDB);
+    const dbUpdates = toSnakeCase(safeUpdates, menuItemToDB);
 
     const menuItem = await updateMenuItemService(id, dbUpdates);
 
@@ -187,7 +211,20 @@ export const deleteMenu = async (req, res, next) => {
     const { id } = req.params;
 
     const existingItem = await getMenuById(id);
-    if (existingItem?.image_url) {
+    if (!existingItem) {
+      return res.status(HTTP_STATUS.NOT_FOUND).json({
+        message: 'Menu item not found',
+      });
+    }
+
+    // Authorization: menu items can only be deleted by the owning shop.
+    if (existingItem.shop_id !== req.user.shopId) {
+      return res.status(HTTP_STATUS.FORBIDDEN).json({
+        message: 'Forbidden: menu item does not belong to your shop',
+      });
+    }
+
+    if (existingItem.image_url) {
       await deleteImage(existingItem.image_url);
     }
 

@@ -8,18 +8,25 @@ export const roleTokenKey = (role) => `teaflow_${role}_token`;
 
 export const getFrontendUrl = () => FRONTEND_URL;
 
-export const setRoleSession = (role, token) => {
-  localStorage.setItem(roleTokenKey(role), token);
+// Auth now relies on an httpOnly cookie set by the backend. The JWT is no
+// longer persisted in localStorage (mitigates XSS token theft). Only a
+// non-sensitive role flag is kept for routing/UX.
+const LEGACY_TOKEN_KEYS = ['teaflow_owner_token', 'teaflow_worker_token', 'teaflow_super_admin_token', 'token'];
+
+const clearLegacyTokens = () => {
+  LEGACY_TOKEN_KEYS.forEach((key) => localStorage.removeItem(key));
+};
+
+export const setRoleSession = (role, _token) => {
   localStorage.setItem('teaflow_active_role', role);
-  localStorage.setItem('token', token);
+  clearLegacyTokens();
 };
 
 export const clearRoleSession = (role) => {
-  localStorage.removeItem(roleTokenKey(role));
+  clearLegacyTokens();
   if (localStorage.getItem('teaflow_active_role') === role) {
     localStorage.removeItem('teaflow_active_role');
   }
-  localStorage.removeItem('token');
 };
 
 export const getRoleFromPath = () => {
@@ -30,28 +37,15 @@ export const getRoleFromPath = () => {
   return localStorage.getItem('teaflow_active_role');
 };
 
-export const getRoleToken = (role = getRoleFromPath()) => {
-  if (!role) return localStorage.getItem('token');
-  return localStorage.getItem(roleTokenKey(role)) || localStorage.getItem('token');
-};
+export const getRoleToken = () => null;
 
 export const api = axios.create({
   baseURL: API_BASE_URL,
+  withCredentials: true, // send the httpOnly auth cookie on every request
   headers: {
     'Content-Type': 'application/json',
   },
 });
-
-api.interceptors.request.use(
-  (config) => {
-    const token = getRoleToken();
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
-  },
-  (error) => Promise.reject(error)
-);
 
 api.interceptors.response.use(
   (response) => response,
@@ -59,7 +53,7 @@ api.interceptors.response.use(
     if (error.response?.status === 401) {
       const role = getRoleFromPath();
       if (role) clearRoleSession(role);
-      else localStorage.removeItem('token');
+      else localStorage.removeItem('teaflow_active_role');
     }
     return Promise.reject(error);
   }

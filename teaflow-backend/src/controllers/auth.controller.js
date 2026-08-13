@@ -1,10 +1,15 @@
 import { HTTP_STATUS } from '../utils/constants.js';
 import { loginOwner, loginWorker, getOwnerProfile, getWorkerProfile, getSuperAdminProfile } from '../services/auth.service.js';
+import { setAuthCookie, clearAuthCookie } from '../middleware/auth.js';
 
 export const ownerLogin = async (req, res, next) => {
   try {
     const { email, password } = req.body;
     const result = await loginOwner(email, password);
+
+    if (result?.token) {
+      setAuthCookie(res, req, result.token);
+    }
 
     res.status(HTTP_STATUS.OK).json({
       message: 'Login successful',
@@ -34,6 +39,10 @@ export const workerLogin = async (req, res, next) => {
     const submittedPin = (password ?? pin ?? '').toString();
     const result = await loginWorker(username, submittedPin);
     console.log('[worker-login] final response', result);
+
+    if (result?.token) {
+      setAuthCookie(res, req, result.token);
+    }
 
     res.status(HTTP_STATUS.OK).json({
       message: 'Login successful',
@@ -69,6 +78,7 @@ export const getProfile = async (req, res, next) => {
 };
 
 export const logout = (req, res) => {
+  clearAuthCookie(res, req);
   res.status(HTTP_STATUS.OK).json({
     message: 'Logout successful',
   });

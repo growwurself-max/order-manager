@@ -100,7 +100,7 @@ Edit `teaflow-frontend/.env` and add your configuration:
 ```env
 VITE_API_URL=https://ordermanager-backend-30x2.onrender.com
 VITE_SUPABASE_URL=https://your-project-id.supabase.co
-VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indtc3ZkbGtxa2h2ZHpocWR5dGd5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ5MDk2NTMsImV4cCI6MjEwMDQ4NTY1M30._9kBtAE7BJ369ybAkEum_PXFzQ61mQF6Yqqp6htgmRc
+VITE_SUPABASE_ANON_KEY=your_anon_key_here
 ```
 
 ### 4. Database Setup

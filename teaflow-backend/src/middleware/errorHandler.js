@@ -30,7 +30,8 @@ export const errorHandler = (err, req, res, next) => {
   res.status(statusCode);
 
   let errorResponse = {
-    message: err.message || 'Internal server error',
+    // Never leak internal error messages/details to the client.
+    message: err instanceof SyntaxError ? 'Invalid request payload' : 'Internal server error',
     stack: process.env.NODE_ENV === 'development' ? err.stack : undefined,
   };
 
@@ -69,21 +70,15 @@ export const errorHandler = (err, req, res, next) => {
 
   if (err.name === 'AuthApiError') {
     console.log('Detected auth API error');
-    errorResponse.message = err.message || 'Authentication error';
+    errorResponse.message = 'Authentication error';
     res.status(HTTP_STATUS.UNAUTHORIZED);
   }
 
   if (err.name === 'PostgrestError' || err.name === 'PgError') {
     console.log('Detected Postgrest/Pg error');
-    errorResponse.message = err.message || 'Database error';
+    errorResponse.message = 'Database error';
     res.status(HTTP_STATUS.BAD_REQUEST);
-    if (err.details) errorResponse.details = err.details;
-    if (err.hint) errorResponse.hint = err.hint;
-  }
-
-  // Add error code to response for debugging
-  if (err.code) {
-    errorResponse.code = err.code;
+    // Intentionally do NOT forward err.details / err.hint to the client.
   }
 
   console.log('Sending error response:', JSON.stringify(errorResponse, null, 2));

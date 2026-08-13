@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
-import { api, getRoleToken, setRoleSession } from '../../services/api';
+import { api, setRoleSession } from '../../services/api';
 import { useToast } from '../../context/ToastContext';
 
 const CONFIG = {
@@ -36,11 +36,9 @@ export default function RoleLogin({ role }) {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    const token = getRoleToken(role);
-    if (!token) return;
-
+    // Auth is carried by the httpOnly cookie; redirect if already logged in.
     api
-      .get('/api/auth/profile', { headers: { Authorization: `Bearer ${token}` } })
+      .get('/api/auth/profile')
       .then((response) => {
         if (response.data?.data?.role === role) setAuthenticated(true);
       })

@@ -58,7 +58,22 @@ export const updateShopSettings = async (req, res, next) => {
       console.log('[updateShopSettings] Resolved UUID:', shopId);
     }
 
-    const updates = req.body;
+    const body = req.body;
+
+    // Strict whitelist: only owner-editable fields may be written.
+    // Unknown keys (e.g., owner_id, subscription_plan, is_active) are dropped.
+    const updates = {};
+    if (body.shopName !== undefined) updates.shop_name = body.shopName;
+    if (body.address !== undefined) updates.address = body.address;
+    if (body.contact !== undefined) updates.contact = body.contact;
+    if (body.settings !== undefined) updates.settings = body.settings;
+    if (body.branding !== undefined) updates.branding = body.branding;
+
+    if (Object.keys(updates).length === 0) {
+      return res.status(HTTP_STATUS.BAD_REQUEST).json({
+        message: 'No valid settings provided',
+      });
+    }
 
     const shopSettings = await updateShopSettingsDB(shopId, updates);
 

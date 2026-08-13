@@ -19,14 +19,16 @@ import {
 import { generateOrderNumber } from '../utils/generateOrderId.js';
 
 export const createOrder = async (shopId, orderData) => {
-  const { customer, items, notes, totalAmount: frontendTotal } = orderData;
+  const { customer, items, notes } = orderData;
 
   // Calculate total from menu items to ensure accuracy
   let totalAmount = 0;
   const processedItems = [];
 
   for (const item of items) {
-    const menuItem = await getMenuByIdDB(item.menuItemId);
+    // Always fetch the menu item scoped to the shop this order belongs to.
+    // This prevents cross-shop menu item injection and price tampering.
+    const menuItem = await getMenuByIdDB(item.menuItemId, shopId);
     if (!menuItem || !menuItem.is_available) {
       throw new Error(`Menu item ${item.menuItemId} not found or unavailable`);
     }
@@ -36,8 +38,8 @@ export const createOrder = async (shopId, orderData) => {
     const sizeObj = sizes.find(s => s.name === sizeName);
     const sizePriceMod = sizeObj ? sizeObj.priceModifier : 0;
 
-    // Use price from item if provided (from frontend), otherwise calculate from basePrice
-    const itemPrice = item.price || menuItem.base_price;
+    // NEVER trust the client-supplied price. Always compute from the DB price.
+    const itemPrice = Number(menuItem.base_price);
     let itemTotal = (itemPrice + sizePriceMod) * item.quantity;
 
     // Add toppings
@@ -64,8 +66,9 @@ export const createOrder = async (shopId, orderData) => {
     });
   }
 
-  // Use frontend calculated total if provided and close enough, otherwise use backend calculation
-  const finalTotal = frontendTotal && Math.abs(frontendTotal - totalAmount) < 0.01 ? frontendTotal : totalAmount;
+  // Total is ALWAYS computed server-side from DB prices. Client-supplied
+  // totals/prices are ignored to prevent price tampering.
+  const finalTotal = totalAmount;
 
   let orderNumber = await generateOrderNumber(shopId);
 
@@ -75,9 +78,8 @@ export const createOrder = async (shopId, orderData) => {
         customer: customer || {},
         items: processedItems,
         notes: notes || '',
-        totalAmount: finalTotal,
+totalAmount: finalTotal,
         orderNumber,
-        frontendTotal,
       });
       await upsertCustomerFromOrder(shopId, result);
       return result;
@@ -112,8 +114,8 @@ export const getActiveOrders = async (shopId) => {
   return orders;
 };
 
-export const updateOrderStatus = async (orderId, newStatus, updatedBy = 'system') => {
-  const order = await updateOrderStatusDB(orderId, newStatus, updatedBy);
+export const updateOrderStatus = async (orderId, shopId, newStatus, updatedBy = 'system') => {
+  const order = await updateOrderStatusDB(orderId, shopId, newStatus, updatedBy);
   return order;
 };
 
@@ -132,8 +134,8 @@ export const attachRecallFields = (order) => {
   };
 };
 
-export const recallCustomer = async (orderId, updatedBy = 'system') => {
-  const order = await recallCustomerDB(orderId, updatedBy);
+export const recallCustomer = async (orderId, shopId, updatedBy = 'system') => {
+  const order = await recallCustomerDB(orderId, shopId, updatedBy);
   // Fire-and-forget notification - don't block the response
   notifyCustomerRecall(order).catch(err => {
     console.error('[Notification] Recall notification failed:', err.message);

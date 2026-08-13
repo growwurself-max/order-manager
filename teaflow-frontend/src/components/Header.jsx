@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { api, getRoleToken } from '../services/api';
+import { api } from '../services/api';
 
 export default function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -10,11 +10,6 @@ export default function Header() {
 
   useEffect(() => {
     const checkAdmin = async () => {
-      const token = getRoleToken('super_admin');
-      if (!token) {
-        setIsAdmin(false);
-        return;
-      }
       try {
         const response = await api.get('/api/auth/profile');
         if (response.data?.data?.role === 'super_admin') {

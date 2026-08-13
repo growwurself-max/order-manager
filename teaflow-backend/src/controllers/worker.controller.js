@@ -156,7 +156,21 @@ export const updateWorker = async (req, res, next) => {
       console.log('[updateWorker] Resolved UUID:', shopId);
     }
 
-    const updates = req.body;
+    const body = req.body;
+
+    // Whitelist editable fields only (prevents mass assignment of
+    // shop_id, role, is_active, etc.).
+    const updates = {};
+    if (body.username !== undefined) updates.username = body.username;
+    if (body.name !== undefined) updates.name = body.name;
+    if (body.password !== undefined) updates.password = body.password;
+    if (body.pin !== undefined) updates.pin = body.pin;
+
+    if (Object.keys(updates).length === 0) {
+      return res.status(HTTP_STATUS.BAD_REQUEST).json({
+        message: 'No valid fields provided',
+      });
+    }
 
     const worker = await updateWorkerDB(id, shopId, updates);
 

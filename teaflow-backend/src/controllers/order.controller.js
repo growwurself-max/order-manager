@@ -19,6 +19,15 @@ import { updatePaymentStatus as updatePaymentStatusDB, getFirstActiveShop, getSh
 import { resolveShopId } from '../utils/resolveShopId.js';
 import { isShopId } from '../utils/generateShopId.js';
 
+// Resolve the authenticated caller's shop to a UUID (handles S#### identifiers)
+const getCallerShopId = async (req) => {
+  let shopId = req.user?.shopId;
+  if (shopId && isShopId(shopId)) {
+    shopId = await resolveShopId(shopId);
+  }
+  return shopId;
+};
+
 export const placeOrder = async (req, res, next) => {
   try {
     let shopId = req.user?.shopId;
@@ -83,11 +92,25 @@ export const placeOrder = async (req, res, next) => {
   }
 };
 
+// Public-facing order projection: keeps tracking info but strips PII.
+const toPublicOrder = (order) => {
+  if (!order) return order;
+  const mapped = addIdAlias(order);
+  return {
+    ...mapped,
+    customer: {
+      phone: mapped.customer?.phone ? mapped.customer.phone.replace(/.(?=.{4})/g, '*') : undefined,
+      name: mapped.customer?.name,
+      tableNumber: mapped.customer?.tableNumber || mapped.customer?.table_number,
+    },
+  };
+};
+
 export const getOrderStatus = async (req, res, next) => {
   try {
     const { orderId } = req.params;
     const order = await getOrderById(orderId);
-    const mapped = addIdAlias(order);
+    const mapped = toPublicOrder(order);
 
     res.status(HTTP_STATUS.OK).json({
       message: 'Order status fetched successfully',
@@ -144,7 +167,8 @@ export const updateStatus = async (req, res, next) => {
       });
     }
 
-    const order = await updateOrderStatus(orderId, status, updatedBy);
+    const shopId = await getCallerShopId(req);
+    const order = await updateOrderStatus(orderId, shopId, status, updatedBy);
 
     res.status(HTTP_STATUS.OK).json({
       message: 'Order status updated successfully',
@@ -398,7 +422,7 @@ export const getActiveOrderByPhone = async (req, res, next) => {
 
     res.status(HTTP_STATUS.OK).json({
       message: 'Active orders found',
-      data: addIdAlias(orders),
+      data: addIdAlias(orders).map(toPublicOrder),
     });
   } catch (error) {
     next(error);
@@ -409,8 +433,9 @@ export const updatePaymentStatus = async (req, res, next) => {
   try {
     const { orderId } = req.params;
     const { paymentStatus } = req.body;
-    
-    const order = await updatePaymentStatusDB(orderId, paymentStatus);
+
+    const shopId = await getCallerShopId(req);
+    const order = await updatePaymentStatusDB(orderId, shopId, paymentStatus);
 
     res.status(HTTP_STATUS.OK).json({
       message: 'Payment status updated successfully',
@@ -429,7 +454,8 @@ export const recallCustomerController = async (req, res, next) => {
     const { orderId } = req.params;
     const updatedBy = req.user.name || 'system';
 
-    const order = await recallCustomer(orderId, updatedBy);
+    const shopId = await getCallerShopId(req);
+    const order = await recallCustomer(orderId, shopId, updatedBy);
 
     res.status(HTTP_STATUS.OK).json({
       message: 'Customer recalled successfully',

@@ -20,6 +20,8 @@ export const workerPinValidator = [
     .optional()
     .notEmpty()
     .withMessage('PIN is required')
+    .matches(/^\d{4,8}$/)
+    .withMessage('PIN must be 4-8 digits')
     .trim(),
   body().custom((value) => {
     if (!value.password && !value.pin) {

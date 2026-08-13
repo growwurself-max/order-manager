@@ -231,13 +231,20 @@ export const getMenuByShopId = async (shopId) => {
   return (data || []).map(item => ({ ...item, price: item.base_price }));
 };
 
-export const getMenuById = async (id) => {
-  const { data, error } = await supabase
+export const getMenuById = async (id, shopId = null) => {
+  let query = supabase
     .from('menu_items')
     .select('*')
-    .eq('id', id)
-    .single();
-  
+    .eq('id', id);
+
+  // When a shop context is known, scope the lookup to that shop to
+  // prevent cross-shop menu item injection.
+  if (shopId) {
+    query = query.eq('shop_id', shopId);
+  }
+
+  const { data, error } = await query.single();
+
   if (error) return null;
   return { ...data, price: data.base_price };
 };
@@ -367,10 +374,15 @@ export const getActiveOrders = async (shopId) => {
   return data || [];
 };
 
-export const updateOrderStatus = async (id, newStatus, updatedBy = 'system') => {
+export const updateOrderStatus = async (id, shopId, newStatus, updatedBy = 'system') => {
   const order = await getOrderById(id);
   if (!order) {
     throw new Error('Order not found');
+  }
+
+  // Authorization check: the caller must belong to the order's shop.
+  if (shopId && order.shop_id !== shopId) {
+    throw new Error('Forbidden: order does not belong to your shop');
   }
 
   const allowedTransitions = {
@@ -434,10 +446,15 @@ export const attachRecallFields = (order) => {
   };
 };
 
-export const recallCustomer = async (id, updatedBy = 'system') => {
+export const recallCustomer = async (id, shopId, updatedBy = 'system') => {
   const order = await getOrderById(id);
   if (!order) {
     throw new Error('Order not found');
+  }
+
+  // Authorization check: the caller must belong to the order's shop.
+  if (shopId && order.shop_id !== shopId) {
+    throw new Error('Forbidden: order does not belong to your shop');
   }
 
   if (order.status !== ORDER_STATUS.READY) {
@@ -624,7 +641,17 @@ export const upsertCustomerFromOrder = async (shopId, order) => {
   return data;
 };
 
-export const updatePaymentStatus = async (id, paymentStatus) => {
+export const updatePaymentStatus = async (id, shopId, paymentStatus) => {
+  const order = await getOrderById(id);
+  if (!order) {
+    throw new Error('Order not found');
+  }
+
+  // Authorization check: the caller must belong to the order's shop.
+  if (shopId && order.shop_id !== shopId) {
+    throw new Error('Forbidden: order does not belong to your shop');
+  }
+
   const { data, error } = await supabase
     .from('orders')
     .update({ payment_status: paymentStatus })

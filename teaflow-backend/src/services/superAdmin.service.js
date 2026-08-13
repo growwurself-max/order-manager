@@ -149,9 +149,14 @@ export const getAllShops = async (filters = {}) => {
   let query = supabase.from('shop_settings').select('*');
 
   if (filters.search) {
-    query = query.or(
-      `shop_name.ilike.%${filters.search}%,contact->>email.ilike.%${filters.search}%`
-    );
+    // Only allow safe characters in the PostgREST filter (prevents
+    // injection of .or()/.eq() style operators via the search string).
+    const safeSearch = String(filters.search).replace(/[(),.]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 100);
+    if (safeSearch) {
+      query = query.or(
+        `shop_name.ilike.%${safeSearch}%,contact->>email.ilike.%${safeSearch}%`
+      );
+    }
   }
   if (filters.status && filters.status !== 'all') {
     query = query.eq('subscription_status', filters.status);
@@ -184,7 +189,7 @@ export const getAllShops = async (filters = {}) => {
 
 export const createShop = async (shopData, origin) => {
   console.log('=== CREATE SHOP START ===');
-  console.log('Received shopData:', JSON.stringify(shopData, null, 2));
+  console.log('Received shopData keys:', Object.keys(shopData));
   console.log('Received origin:', origin);
 
   // Check database connection

@@ -29,30 +29,17 @@ export const loginOwner = async (email, password) => {
 };
 
 export const loginWorker = async (username, pin) => {
-  console.log('[worker-login] looking up worker by username', username);
   const worker = await findWorkerByUsernameForAuth(username);
   if (!worker) {
-    console.log('[worker-login] worker not found');
-    throw new AuthError('Invalid credentials or inactive account');
+    throw new AuthError('Invalid credentials');
   }
-
-  console.log('[worker-login] worker found', {
-    id: worker.id,
-    username: worker.username,
-    role: worker.role,
-    is_active: worker.is_active,
-    shop_id: worker.shop_id,
-  });
 
   if (!worker.is_active) {
-    console.log('[worker-login] worker inactive');
-    throw new AuthError('Invalid credentials or inactive account');
+    throw new AuthError('Invalid credentials');
   }
 
-  console.log('[worker-login] stored hash', worker.pin);
   const submittedPin = pin !== undefined && pin !== null ? pin.toString() : '';
   const isMatch = await bcrypt.compare(submittedPin, worker.pin);
-  console.log('[worker-login] bcrypt comparison result', isMatch);
   if (!isMatch) {
     throw new AuthError('Invalid credentials');
   }
@@ -61,9 +48,7 @@ export const loginWorker = async (username, pin) => {
     throw new AuthError('Invalid credentials');
   }
 
-  console.log('[worker-login] generating JWT for worker', worker.id);
   const token = generateToken(worker.id, worker.shop_id, 'worker');
-  console.log('[worker-login] JWT generated', { tokenLength: token.length, role: 'worker' });
   return {
     token,
     user: {

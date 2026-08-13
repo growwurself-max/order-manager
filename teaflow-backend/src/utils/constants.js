@@ -49,13 +49,14 @@ export const DEFAULT_SHOP_SETTINGS = {
   },
 };
 
-// WARNING: JWT_SECRET MUST be set via environment variable in production
+// WARNING: JWT_SECRET MUST always be set via environment variable.
 // Generate a strong random secret: node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"
-if (!process.env.JWT_SECRET && process.env.NODE_ENV === 'production') {
+if (!process.env.JWT_SECRET) {
   throw new Error('FATAL: JWT_SECRET environment variable is not set!');
 }
-export const JWT_SECRET = process.env.JWT_SECRET || 'teaflow_jwt_secret_key_change_in_production';
+export const JWT_SECRET = process.env.JWT_SECRET;
 export const JWT_EXPIRY = process.env.JWT_EXPIRY || '8h'; // Reduced from 24h for better security
+export const JWT_ALGORITHM = 'HS256';
 
 export const PASSWORD_SALT_ROUNDS = 10;
 

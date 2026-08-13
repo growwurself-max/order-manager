@@ -24,6 +24,10 @@ import superAdminRoutes from './routes/superAdmin.routes.js';
 
 const app = express();
 
+// Behind a reverse proxy (Render/Vercel), trust the first hop so that
+// express-rate-limit keys on the real client IP via X-Forwarded-For.
+app.set('trust proxy', 1);
+
 app.use(helmet());
 
 // Parse allowed origins from CORS_ORIGIN (comma-separated) into an array
@@ -60,7 +64,29 @@ const corsOptions = {
 };
 
 app.use(cors(corsOptions));
-app.use(express.json({ limit: '50mb' })); // Increased for large image uploads
+app.use(express.json({ limit: '10mb' }));
+
+// Minimal cookie parser (no external dependency). Populates req.cookies.
+app.use((req, _res, next) => {
+  req.cookies = {};
+  const header = req.headers.cookie;
+  if (header) {
+    for (const pair of header.split(';')) {
+      const idx = pair.indexOf('=');
+      if (idx === -1) continue;
+      const key = pair.slice(0, idx).trim();
+      let val = pair.slice(idx + 1).trim();
+      try {
+        val = decodeURIComponent(val);
+      } catch {
+        /* keep raw value on malformed encoding */
+      }
+      req.cookies[key] = val;
+    }
+  }
+  next();
+});
+
 app.use(logger);
 
 // Rate limiting: only restrict auth login and general API separately
@@ -79,6 +105,14 @@ const generalLimiter = rateLimit({
   message: { message: 'Too many requests, please try again later.' },
 });
 app.use('/api/', generalLimiter);
+
+// SSE connections hold open sockets — cap them per IP to prevent resource exhaustion.
+const sseLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 30,
+  message: { message: 'Too many connections, please try again later.' },
+});
+app.use('/api/events', sseLimiter);
 
 app.get('/', (req, res) => {
   res.json({ message: 'Order Manager Backend API Running' });
