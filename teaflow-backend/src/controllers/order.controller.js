@@ -432,6 +432,20 @@ export const updatePaymentStatus = async (req, res, next) => {
     const { paymentStatus } = req.body;
 
     const shopId = await getCallerShopId(req);
+    // Fetch order first to enforce pay_now lock
+    const { getOrderById: getOrderForGuard } = await import('../services/supabase.service.js');
+    const existing = await getOrderForGuard(orderId);
+    if (!existing) {
+      return res.status(HTTP_STATUS.NOT_FOUND).json({ message: 'Order not found' });
+    }
+    if (existing.shop_id && shopId && existing.shop_id !== shopId) {
+      return res.status(HTTP_STATUS.FORBIDDEN).json({ message: 'Forbidden: order does not belong to your shop' });
+    }
+    if (existing.payment_method === 'pay_now' && existing.payment_status === 'paid') {
+      return res.status(HTTP_STATUS.BAD_REQUEST).json({
+        message: 'Verified online payments (Pay Now) are locked and cannot be edited.',
+      });
+    }
     const order = await updatePaymentStatusDB(orderId, shopId, paymentStatus);
 
     res.status(HTTP_STATUS.OK).json({

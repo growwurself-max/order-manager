@@ -440,13 +440,19 @@ export default function WorkerHome() {
                             ⏳ Waiting for Pickup
                           </span>
                         )}
-                        <button
-                          onClick={() => updatePaymentStatus(order._id, order.paymentStatus)}
-                          className={`px-3 py-1 rounded-full text-xs sm:text-sm font-semibold border-2 cursor-pointer hover:opacity-80 transition ${order.paymentStatus === 'paid' ? 'bg-green-100 text-green-700 border-green-300' : 'bg-red-100 text-red-700 border-red-300'}`}
-                          title="Click to toggle payment status"
-                        >
-                          {order.paymentStatus === 'paid' ? '✅ Paid' : '💰 Unpaid'}
-                        </button>
+                        {(() => {
+                          const isPayNowPaid = order.paymentMethod === 'pay_now' && order.paymentStatus === 'paid';
+                          return (
+                            <button
+                              onClick={() => !isPayNowPaid && updatePaymentStatus(order._id, order.paymentStatus)}
+                              disabled={isPayNowPaid}
+                              className={`px-3 py-1 rounded-full text-xs sm:text-sm font-semibold border-2 transition ${order.paymentStatus === 'paid' ? 'bg-green-100 text-green-700 border-green-300' : 'bg-red-100 text-red-700 border-red-300'} ${isPayNowPaid ? 'cursor-not-allowed opacity-60' : 'cursor-pointer hover:opacity-80'}`}
+                              title={isPayNowPaid ? 'Verified online payments (Pay Now) are locked and cannot be edited.' : 'Click to toggle payment status'}
+                            >
+                              {order.paymentStatus === 'paid' ? (isPayNowPaid ? '🔒 ✅ Paid' : '✅ Paid') : '💰 Unpaid'}
+                            </button>
+                          );
+                        })()}
                       </div>
                       <p className="text-gray-600 text-sm sm:text-base flex items-center gap-2 flex-wrap">
                         Customer: <span className="font-semibold">{order.customer?.name || 'Guest'}</span>
