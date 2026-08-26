@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { api } from '../../services/api';
+import { api, createRazorpayOrder, verifyRazorpayPayment } from '../../services/api';
 import { useOrderNotification } from '../../context/OrderNotificationContext';
 import ProductImage from '../../components/ProductImage';
 
@@ -37,6 +37,8 @@ export default function CustomerHome() {
   const [error, setError] = useState('');
   const [initializing, setInitializing] = useState(true);
   const [recallBanner, setRecallBanner] = useState(null);
+  const [paymentMethod, setPaymentMethod] = useState('pay_later'); // pay_later | pay_now (default pay_later = existing behavior)
+  const [paymentInitializing, setPaymentInitializing] = useState(false);
   const pollingRef = useRef(null);
   const prevStatusMapRef = useRef({});
   const { connectToOrderEvents, disconnectFromOrderEvents } = useOrderNotification();
@@ -393,6 +395,17 @@ export default function CustomerHome() {
     });
   };
 
+  const loadRazorpayScript = () => {
+    return new Promise((resolve, reject) => {
+      if (window.Razorpay) return resolve(true);
+      const script = document.createElement('script');
+      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+      script.onload = () => resolve(true);
+      script.onerror = () => reject(new Error('Failed to load Razorpay checkout. Please check your internet connection.'));
+      document.body.appendChild(script);
+    });
+  };
+
   const placeOrder = async () => {
     if (cart.length === 0) return;
     
@@ -401,12 +414,118 @@ export default function CustomerHome() {
       setError('Maximum 15 items are allowed per order.');
       return;
     }
+    if (!shopId) {
+      setError('Shop ID is missing. Please select a shop (e.g., via QR code or Shop ID entry) and retry.');
+      return;
+    }
+
+    const isPayNow = paymentMethod === 'pay_now';
     
+    if (isPayNow) {
+      // Pay Now — create pending order + Razorpay order, then open checkout
+      if (paymentInitializing || loading) return; // duplicate click guard
+      setPaymentInitializing(true);
+      setError('');
+      try {
+        await loadRazorpayScript();
+
+        const payload = {
+          shopId,
+          customer: customerInfo,
+          items: cart.map(i => ({
+            menuItemId: i._id,
+            name: i.name,
+            quantity: i.quantity,
+            price: i.price,
+          })),
+          notes: '',
+        };
+
+        const resp = await createRazorpayOrder(payload);
+        const d = resp.data.data;
+        const { razorpayOrderId, amount, currency, orderNumber, dbOrderId, keyId } = d;
+
+        const resolvedKeyId = keyId || import.meta.env.VITE_RAZORPAY_KEY_ID;
+        if (!resolvedKeyId) {
+          throw new Error('Razorpay is not configured. Please contact support.');
+        }
+
+        const options = {
+          key: resolvedKeyId,
+          amount,
+          currency: currency || 'INR',
+          name: shopName || 'Order Manager',
+          description: `Order ${orderNumber}`,
+          order_id: razorpayOrderId,
+          prefill: {
+            name: customerInfo.name,
+            contact: customerInfo.phone,
+          },
+          notes: {
+            shop_id: shopId,
+            order_number: orderNumber,
+            db_order_id: dbOrderId,
+          },
+          theme: { color: '#f59e0b' },
+          handler: async function (response) {
+            // Verified on backend ONLY — never trust frontend callback
+            try {
+              const verifyResp = await verifyRazorpayPayment({
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_signature: response.razorpay_signature,
+              });
+              const vData = verifyResp.data.data;
+              setOrderResult({
+                orderId: vData.orderId || dbOrderId,
+                _id: vData.orderId || dbOrderId,
+                orderNumber: vData.orderNumber || orderNumber,
+                status: 'placed',
+                totalAmount: cart.reduce((sum, i) => sum + (i.price * i.quantity), 0),
+                paymentStatus: vData.paymentStatus,
+              });
+              setCart([]);
+              setStep('success');
+            } catch (verifyErr) {
+              const msg = verifyErr.response?.data?.message || verifyErr.message || 'Payment verification failed. If money was debited, it will be refunded or confirmed via webhook.';
+              setError(msg);
+              // Keep order in pending state — webhook may still capture
+              setOrderResult({ orderId: dbOrderId, _id: dbOrderId, orderNumber, status: 'placed' });
+            } finally {
+              setPaymentInitializing(false);
+            }
+          },
+          modal: {
+            ondismiss: function () {
+              // Customer cancelled checkout — order remains pending/unpaid (not paid)
+              setError('Payment cancelled. Order is pending. You can retry Pay Now or use Pay Later.');
+              setPaymentInitializing(false);
+            },
+          },
+        };
+
+        const rzp = new window.Razorpay(options);
+        rzp.on('payment.failed', function (response) {
+          const reason = response?.error?.description || response?.error?.reason || 'Payment failed';
+          setError(`Payment failed: ${reason}`);
+          setPaymentInitializing(false);
+        });
+        rzp.open();
+      } catch (err) {
+        const msg = err.response?.data?.message || err.message || 'Failed to initialize payment. Please try again.';
+        setError(msg);
+        setPaymentInitializing(false);
+      }
+      return;
+    }
+    
+    // Pay Later — existing flow with explicit paymentMethod
     setLoading(true);
     setError('');
     try {
       const url = '/api/orders' + (shopId ? `?shopId=${shopId}` : '');
       const response = await api.post(url, {
+        shopId,
         customer: customerInfo,
         items: cart.map(i => ({
           menuItemId: i._id,
@@ -415,6 +534,7 @@ export default function CustomerHome() {
           price: i.price,
         })),
         totalAmount: cart.reduce((sum, i) => sum + (i.price * i.quantity), 0),
+        paymentMethod: 'pay_later',
       });
       const newOrder = response.data.data;
       setOrderResult(newOrder);
@@ -1039,6 +1159,32 @@ export default function CustomerHome() {
                   </div>
                 </div>
 
+                {/* Payment method selector — Pay Now / Pay Later */}
+                <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 mb-4">
+                  <p className="text-sm font-semibold text-gray-700 mb-3">Select Payment Method</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setPaymentMethod('pay_later')}
+                      className={`min-h-[44px] rounded-xl px-4 py-3 text-sm font-semibold border-2 transition ${paymentMethod === 'pay_later' ? 'bg-amber-50 border-amber-500 text-amber-700' : 'bg-white border-gray-200 text-gray-700 hover:border-gray-300'}`}
+                    >
+                      <span className="block text-lg leading-none mb-1">💵</span> Pay Later
+                      <span className="block text-[11px] font-normal text-gray-500 mt-0.5">Pay at counter</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPaymentMethod('pay_now')}
+                      className={`min-h-[44px] rounded-xl px-4 py-3 text-sm font-semibold border-2 transition ${paymentMethod === 'pay_now' ? 'bg-amber-50 border-amber-500 text-amber-700' : 'bg-white border-gray-200 text-gray-700 hover:border-gray-300'}`}
+                    >
+                      <span className="block text-lg leading-none mb-1">💳</span> Pay Now
+                      <span className="block text-[11px] font-normal text-gray-500 mt-0.5">Razorpay (Test)</span>
+                    </button>
+                  </div>
+                  {paymentMethod === 'pay_now' && (
+                    <p className="text-xs text-gray-500 mt-3">You will be redirected to Razorpay Checkout (test mode). Amount is calculated securely by the server.</p>
+                  )}
+                </div>
+
                 {error && (
                   <motion.p
                     initial={{ opacity: 0 }}
@@ -1053,14 +1199,14 @@ export default function CustomerHome() {
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                   onClick={placeOrder}
-                  disabled={loading || !shopStatus.isOpenForOrders}
+                  disabled={loading || paymentInitializing || !shopStatus.isOpenForOrders}
                   className={`min-h-[44px] w-full py-3 sm:py-4 rounded-2xl text-base sm:text-lg font-semibold shadow-lg ${
-                    loading || !shopStatus.isOpenForOrders
+                    loading || paymentInitializing || !shopStatus.isOpenForOrders
                       ? 'bg-gray-300 text-gray-500 cursor-not-allowed opacity-50'
                       : 'bg-gradient-to-r from-amber-500 to-orange-500 text-white'
                   }`}
                 >
-                  {loading ? 'Placing Order...' : !shopStatus.isOpenForOrders ? 'Shop Closed' : 'Place Order'}
+                  {paymentInitializing ? 'Opening Razorpay…' : loading ? 'Placing Order...' : !shopStatus.isOpenForOrders ? 'Shop Closed' : paymentMethod === 'pay_now' ? 'Pay Now with Razorpay' : 'Place Order (Pay Later)'}
                 </motion.button>
               </>
             )}

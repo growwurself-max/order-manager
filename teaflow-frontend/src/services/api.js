@@ -59,4 +59,15 @@ api.interceptors.response.use(
   }
 );
 
+// Payment API helpers — Razorpay TEST MODE (defined after api to avoid TDZ)
+export const createRazorpayOrder = (payload) => api.post('/api/payment/order', payload);
+export const verifyRazorpayPayment = (payload) => api.post('/api/payment/verify', payload);
+export const getRazorpayConfig = () => api.get('/api/payment/config');
+
+export const apiPayment = {
+  createOrder: createRazorpayOrder,
+  verify: verifyRazorpayPayment,
+  config: getRazorpayConfig,
+};
+
 export default api;

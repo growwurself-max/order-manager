@@ -31,6 +31,11 @@ export const addIdAlias = (obj) => {
   if (result.recall_count !== undefined && result.recallCount === undefined) result.recallCount = result.recall_count;
   if (result.last_recall_at !== undefined && result.lastRecallAt === undefined) result.lastRecallAt = result.last_recall_at;
   if (result.payment_status !== undefined && result.paymentStatus === undefined) result.paymentStatus = result.payment_status;
+  if (result.payment_method !== undefined && result.paymentMethod === undefined) result.paymentMethod = result.payment_method;
+  if (result.razorpay_order_id !== undefined && result.razorpayOrderId === undefined) result.razorpayOrderId = result.razorpay_order_id;
+  if (result.razorpay_payment_id !== undefined && result.razorpayPaymentId === undefined) result.razorpayPaymentId = result.razorpay_payment_id;
+  if (result.razorpay_signature !== undefined && result.razorpaySignature === undefined) result.razorpaySignature = result.razorpay_signature;
+  if (result.payment_verified_at !== undefined && result.paymentVerifiedAt === undefined) result.paymentVerifiedAt = result.payment_verified_at;
   if (result.updated_at !== undefined && result.updatedAt === undefined) result.updatedAt = result.updated_at;
   if (result.placed_at !== undefined && result.placedAt === undefined) result.placedAt = result.placed_at;
   if (result.completed_at !== undefined && result.completedAt === undefined) result.completedAt = result.completed_at;

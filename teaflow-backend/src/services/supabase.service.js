@@ -281,7 +281,7 @@ export const deleteMenuItem = async (id) => {
 // Orders
 // ===========================
 export const createOrder = async (shopId, orderData) => {
-  const { customer, items, notes, totalAmount, orderNumber } = orderData;
+  const { customer, items, notes, totalAmount, orderNumber, paymentMethod, paymentStatus } = orderData;
 
   let processedItems = items;
   
@@ -305,6 +305,8 @@ export const createOrder = async (shopId, orderData) => {
         updated_by: 'customer',
       },
     ],
+    payment_method: paymentMethod || 'pay_later',
+    payment_status: paymentStatus || 'unpaid',
   };
 
   const { data, error } = await supabase

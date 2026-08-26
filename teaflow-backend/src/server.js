@@ -21,6 +21,7 @@ import workerRoutes from './routes/worker.routes.js';
 import shopRoutes from './routes/shop.routes.js';
 import eventRoutes, { setupOrderRealtimeSubscription, setupShopStatusRealtimeSubscription } from './routes/event.routes.js';
 import superAdminRoutes from './routes/superAdmin.routes.js';
+import paymentRoutes from './routes/payment.routes.js';
 
 const app = express();
 
@@ -64,7 +65,21 @@ const corsOptions = {
 };
 
 app.use(cors(corsOptions));
-app.use(express.json({ limit: '10mb' }));
+
+// Razorpay webhook requires raw body for signature verification.
+// Mount webhook router BEFORE global JSON parser so raw bytes are preserved.
+// We capture raw body for ALL requests via verify callback, then json parse.
+// Only /api/payment/webhook actually needs rawBody, but capturing globally is safe and cheap.
+app.use(
+  express.json({
+    limit: '10mb',
+    verify: (req, _res, buf) => {
+      if (buf && buf.length) {
+        req.rawBody = buf; // Buffer retained for webhook HMAC verification
+      }
+    },
+  })
+);
 
 // Minimal cookie parser (no external dependency). Populates req.cookies.
 app.use((req, _res, next) => {
@@ -131,6 +146,7 @@ app.get('/api/health', (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/menu', menuRoutes);
 app.use('/api/orders', orderRoutes);
+app.use('/api/payment', paymentRoutes);
 app.use('/api/workers', workerRoutes);
 app.use('/api/shop', shopRoutes);
 app.use('/api/events', eventRoutes);

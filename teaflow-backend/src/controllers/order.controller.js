@@ -15,7 +15,7 @@ import {
   attachRecallFields,
   recallCustomer,
 } from '../services/order.service.js';
-import { updatePaymentStatus as updatePaymentStatusDB, getFirstActiveShop, getShopSettingsById } from '../services/supabase.service.js';
+import { updatePaymentStatus as updatePaymentStatusDB, getShopSettingsById } from '../services/supabase.service.js';
 import { resolveShopId } from '../utils/resolveShopId.js';
 import { isShopId } from '../utils/generateShopId.js';
 
@@ -30,20 +30,15 @@ const getCallerShopId = async (req) => {
 
 export const placeOrder = async (req, res, next) => {
   try {
-    let shopId = req.user?.shopId;
+    // SECURITY FIX: Customer orders must have explicit valid shopId.
+    // Removed fallback to getFirstActiveShop() — tenant must be explicit.
+    // Shop can come from body.shopId (Pay Now) or query.shopId or authenticated user.
+    let shopId = req.body.shopId || req.query.shopId || req.user?.shopId;
     
     if (!shopId) {
-      shopId = req.query.shopId;
-    }
-
-    if (!shopId) {
-      const shop = await getFirstActiveShop();
-      if (!shop) {
-        return res.status(HTTP_STATUS.NOT_FOUND).json({
-          message: 'No active shop found',
-        });
-      }
-      shopId = shop.id;
+      return res.status(HTTP_STATUS.BAD_REQUEST).json({
+        message: 'Shop ID is required. Please provide a valid Shop ID (e.g., S1001).',
+      });
     }
 
     const resolvedShopId = await resolveShopId(shopId);
@@ -66,8 +61,19 @@ export const placeOrder = async (req, res, next) => {
         message: 'This shop is currently closed and not accepting orders',
       });
     }
+
+    // Extract payment fields safely (whitelist)
+    const paymentMethodRaw = req.body.paymentMethod;
+    const allowedPaymentMethods = ['pay_later', 'pay_now', ''];
+    const paymentMethod = allowedPaymentMethods.includes(paymentMethodRaw) ? paymentMethodRaw : '';
     
-    const orderData = req.body;
+    // Normalize payment fields for order creation (Pay Later explicitly)
+    const orderData = {
+      customer: req.body.customer,
+      items: req.body.items,
+      notes: req.body.notes,
+      paymentMethod: paymentMethod || 'pay_later', // default to pay_later for legacy callers
+    };
 
     const order = await createOrder(resolvedShopId, orderData);
     const mapped = addIdAlias(order);
@@ -80,6 +86,8 @@ export const placeOrder = async (req, res, next) => {
         orderNumber: mapped.orderNumber,
         status: mapped.status,
         totalAmount: mapped.totalAmount,
+        paymentStatus: mapped.paymentStatus,
+        paymentMethod: mapped.paymentMethod,
       },
     });
   } catch (error) {
@@ -253,13 +261,9 @@ export const exportOrders = async (req, res, next) => {
     }
     
     if (!shopId) {
-      const shop = await getFirstActiveShop();
-      if (!shop) {
-        return res.status(HTTP_STATUS.NOT_FOUND).json({
-          message: 'No active shop found',
-        });
-      }
-      shopId = shop.id;
+      return res.status(HTTP_STATUS.BAD_REQUEST).json({
+        message: 'Shop ID is required. Please provide a valid Shop ID.',
+      });
     }
 
     const resolvedShopId = await resolveShopId(shopId);
@@ -308,7 +312,7 @@ export const exportOrders = async (req, res, next) => {
         totalQuantity,
         order.total_amount,
         order.status,
-        order.status === 'completed' ? 'Paid' : 'Pending',
+        order.payment_status || (order.status === 'completed' ? 'paid' : 'unpaid'),
         order.created_at,
       ];
 
@@ -389,19 +393,12 @@ export const getActiveOrderByPhone = async (req, res, next) => {
   try {
     const { phone } = req.params;
     
-    let shopId = req.user?.shopId;
-    if (!shopId) {
-      shopId = req.query.shopId;
-    }
+    let shopId = req.user?.shopId || req.query.shopId;
     
     if (!shopId) {
-      const shop = await getFirstActiveShop();
-      if (!shop) {
-        return res.status(HTTP_STATUS.NOT_FOUND).json({
-          message: 'No active shop found',
-        });
-      }
-      shopId = shop.id;
+      return res.status(HTTP_STATUS.BAD_REQUEST).json({
+        message: 'Shop ID is required to fetch active orders',
+      });
     }
 
     const resolvedShopId = await resolveShopId(shopId);

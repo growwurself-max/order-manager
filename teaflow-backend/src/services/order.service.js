@@ -1,4 +1,4 @@
-import { ORDER_STATUS, DEFAULT_RECALL_TIMER_MINUTES } from '../utils/constants.js';
+import { ORDER_STATUS, DEFAULT_RECALL_TIMER_MINUTES, PAYMENT_STATUS, PAYMENT_METHOD } from '../utils/constants.js';
 import { notifyCustomerRecall } from '../services/notification.service.js';
 import {
   createOrder as createOrderDB,
@@ -19,7 +19,9 @@ import {
 import { generateOrderNumber } from '../utils/generateOrderId.js';
 
 export const createOrder = async (shopId, orderData) => {
-  const { customer, items, notes } = orderData;
+  const { customer, items, notes, paymentMethod } = orderData;
+  const normalizedPaymentMethod = [PAYMENT_METHOD.PAY_NOW, PAYMENT_METHOD.PAY_LATER].includes(paymentMethod) ? paymentMethod : PAYMENT_METHOD.PAY_LATER;
+  const paymentStatus = normalizedPaymentMethod === PAYMENT_METHOD.PAY_LATER ? PAYMENT_STATUS.UNPAID : PAYMENT_STATUS.PENDING;
 
   // Calculate total from menu items to ensure accuracy
   let totalAmount = 0;
@@ -78,8 +80,10 @@ export const createOrder = async (shopId, orderData) => {
         customer: customer || {},
         items: processedItems,
         notes: notes || '',
-totalAmount: finalTotal,
+        totalAmount: finalTotal,
         orderNumber,
+        paymentMethod: normalizedPaymentMethod,
+        paymentStatus,
       });
       await upsertCustomerFromOrder(shopId, result);
       return result;

@@ -61,3 +61,16 @@ export const JWT_ALGORITHM = 'HS256';
 export const PASSWORD_SALT_ROUNDS = 10;
 
 export const DEFAULT_RECALL_TIMER_MINUTES = 2;
+
+export const PAYMENT_STATUS = {
+  UNPAID: 'unpaid',
+  PENDING: 'pending',
+  PAID: 'paid',
+  FAILED: 'failed',
+  REFUNDED: 'refunded',
+};
+
+export const PAYMENT_METHOD = {
+  PAY_LATER: 'pay_later',
+  PAY_NOW: 'pay_now',
+};

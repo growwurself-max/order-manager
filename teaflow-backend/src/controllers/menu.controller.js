@@ -6,7 +6,6 @@ import {
   getMenuById,
   updateMenuItem as updateMenuItemService,
   deleteMenuItem as deleteMenuItemService,
-  getFirstActiveShop,
 } from '../services/supabase.service.js';
 import { uploadImage, deleteImage } from '../services/image.service.js';
 import { menuItemToDB, toSnakeCase } from '../utils/mapping.js';
@@ -70,20 +69,12 @@ export const createMenu = async (req, res, next) => {
 
 export const getMenu = async (req, res, next) => {
   try {
-    let shopId = req.user?.shopId;
+    let shopId = req.user?.shopId || req.query.shopId;
     
     if (!shopId) {
-      shopId = req.query.shopId;
-      
-      if (!shopId) {
-        const shop = await getFirstActiveShop();
-        if (!shop) {
-          return res.status(HTTP_STATUS.NOT_FOUND).json({
-            message: 'No active shop found',
-          });
-        }
-        shopId = shop.id;
-      }
+      return res.status(HTTP_STATUS.BAD_REQUEST).json({
+        message: 'Shop ID is required. Provide ?shopId=S####',
+      });
     }
 
     const resolvedShopId = await resolveShopId(shopId);
@@ -108,9 +99,23 @@ export const getMenu = async (req, res, next) => {
 export const getMenuItem = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const menuItem = await getMenuById(id);
+    // FIX: enforce tenant scoping for public menu item lookup
+    // If shopId provided (customer), scope query. If owner authenticated, scope to owner shop.
+    let shopIdForScope = req.query.shopId || req.user?.shopId;
+    let resolvedShopId = null;
+    if (shopIdForScope) {
+      resolvedShopId = await resolveShopId(shopIdForScope);
+    }
+    const menuItem = await getMenuById(id, resolvedShopId || null);
 
     if (!menuItem) {
+      return res.status(HTTP_STATUS.NOT_FOUND).json({
+        message: 'Menu item not found',
+      });
+    }
+
+    // If shop context provided, ensure item belongs to that shop
+    if (resolvedShopId && menuItem.shop_id !== resolvedShopId) {
       return res.status(HTTP_STATUS.NOT_FOUND).json({
         message: 'Menu item not found',
       });

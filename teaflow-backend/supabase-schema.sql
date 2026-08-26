@@ -100,9 +100,13 @@ CREATE TABLE IF NOT EXISTS orders (
   placed_at TIMESTAMPTZ DEFAULT NOW(),
   status_history JSONB DEFAULT '[]'::jsonb,
   completed_at TIMESTAMPTZ,
-  payment_status TEXT DEFAULT 'unpaid' CHECK (payment_status IN ('unpaid', 'paid')),
-  payment_method TEXT DEFAULT '',
-  archived BOOLEAN DEFAULT FALSE,
+   payment_status TEXT DEFAULT 'unpaid' CHECK (payment_status IN ('unpaid', 'paid', 'pending', 'failed', 'refunded')),
+   payment_method TEXT DEFAULT '' CHECK (payment_method IN ('', 'pay_later', 'pay_now')),
+   razorpay_order_id TEXT,
+   razorpay_payment_id TEXT,
+   razorpay_signature TEXT,
+   payment_verified_at TIMESTAMPTZ,
+   archived BOOLEAN DEFAULT FALSE,
   ready_at TIMESTAMPTZ,
   recall_count INTEGER DEFAULT 0,
   last_recall_at TIMESTAMPTZ,
@@ -190,4 +194,32 @@ CREATE INDEX IF NOT EXISTS idx_shop_settings_shop_identifier ON shop_settings(sh
 -- Alter: owners (new columns)
 -- ===========================
 ALTER TABLE owners ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;
+
+-- ===========================
+-- Payment Migration (Razorpay)
+-- ===========================
+-- Extend orders table for Razorpay TEST MODE integration.
+-- Safe for existing orders: new columns are nullable / defaulted.
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS razorpay_order_id TEXT;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS razorpay_payment_id TEXT;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS razorpay_signature TEXT;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS payment_verified_at TIMESTAMPTZ;
+
+-- Relax payment_status / payment_method to include pending/failed/refunded and pay_later/pay_now
+-- Drop existing checks if present, then recreate with extended values.
+DO $$ BEGIN
+  ALTER TABLE orders DROP CONSTRAINT IF EXISTS orders_payment_status_check;
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
+ALTER TABLE orders ADD CONSTRAINT orders_payment_status_check CHECK (payment_status IN ('unpaid','pending','paid','failed','refunded'));
+
+DO $$ BEGIN
+  ALTER TABLE orders DROP CONSTRAINT IF EXISTS orders_payment_method_check;
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
+ALTER TABLE orders ADD CONSTRAINT orders_payment_method_check CHECK (payment_method IN ('','pay_later','pay_now'));
+
+-- Index razorpay_order_id for webhook/verify lookups (idempotent)
+CREATE INDEX IF NOT EXISTS idx_orders_razorpay_order_id ON orders(razorpay_order_id);
+CREATE INDEX IF NOT EXISTS idx_orders_shop_payment_status ON orders(shop_id, payment_status);
 
