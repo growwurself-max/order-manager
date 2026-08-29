@@ -217,9 +217,21 @@ DO $$ BEGIN
   ALTER TABLE orders DROP CONSTRAINT IF EXISTS orders_payment_method_check;
 EXCEPTION WHEN OTHERS THEN NULL;
 END $$;
-ALTER TABLE orders ADD CONSTRAINT orders_payment_method_check CHECK (payment_method IN ('','pay_later','pay_now'));
+ALTER TABLE orders ADD CONSTRAINT orders_payment_method_check CHECK (payment_method IN ('','pay_later','pay_now','upi_qr'));
 
 -- Index razorpay_order_id for webhook/verify lookups (idempotent)
 CREATE INDEX IF NOT EXISTS idx_orders_razorpay_order_id ON orders(razorpay_order_id);
 CREATE INDEX IF NOT EXISTS idx_orders_shop_payment_status ON orders(shop_id, payment_status);
+
+-- ===========================
+-- Payment Settings + UPI QR (per-shop tenant)
+-- ===========================
+ALTER TABLE shop_settings ADD COLUMN IF NOT EXISTS payment_pay_now_enabled BOOLEAN DEFAULT TRUE;
+ALTER TABLE shop_settings ADD COLUMN IF NOT EXISTS payment_pay_later_enabled BOOLEAN DEFAULT FALSE;
+ALTER TABLE shop_settings ADD COLUMN IF NOT EXISTS payment_upi_qr_enabled BOOLEAN DEFAULT FALSE;
+ALTER TABLE shop_settings ADD COLUMN IF NOT EXISTS payment_upi_qr_image_url TEXT DEFAULT '';
+UPDATE shop_settings SET payment_pay_now_enabled = TRUE WHERE payment_pay_now_enabled IS NULL;
+UPDATE shop_settings SET payment_pay_later_enabled = FALSE WHERE payment_pay_later_enabled IS NULL;
+UPDATE shop_settings SET payment_upi_qr_enabled = FALSE WHERE payment_upi_qr_enabled IS NULL;
+CREATE INDEX IF NOT EXISTS idx_orders_shop_payment_method ON orders(shop_id, payment_method);
 

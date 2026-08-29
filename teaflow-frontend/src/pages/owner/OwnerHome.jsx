@@ -61,6 +61,13 @@ export default function OwnerHome() {
     workersAvailable: true,
   });
 
+  // Payment Settings (per-shop owner)
+  const [paymentSettings, setPaymentSettings] = useState({ payNowEnabled: true, payLaterEnabled: false, upiQrEnabled: false, qrImageUrl: '' });
+  const [paymentLoading, setPaymentLoading] = useState(false);
+  const [qrImageData, setQrImageData] = useState(null);
+  const [qrRemoveFlag, setQrRemoveFlag] = useState(false);
+  const [qrSaving, setQrSaving] = useState(false);
+
   useEffect(() => {
     checkAuth();
   }, []);
@@ -132,7 +139,7 @@ export default function OwnerHome() {
         await fetchOrders();
         break;
       case 'settings':
-        await Promise.all([fetchShopSettings(), fetchOwnerProfile()]);
+        await Promise.all([fetchShopSettings(), fetchOwnerProfile(), fetchPaymentSettings()]);
         break;
       default:
         break;
@@ -214,6 +221,49 @@ export default function OwnerHome() {
     } catch (err) {
       // Silent fail
     }
+  };
+
+  const fetchPaymentSettings = async () => {
+    setPaymentLoading(true);
+    try {
+      const response = await api.get('/api/shop/payment-settings');
+      const d = response.data.data;
+      setPaymentSettings({ payNowEnabled: d.payNowEnabled !== false, payLaterEnabled: d.payLaterEnabled === true, upiQrEnabled: d.upiQrEnabled === true, qrImageUrl: d.qrImageUrl || '' });
+      setQrImageData(null); setQrRemoveFlag(false);
+    } catch (err) { showToast(err.response?.data?.message || 'Failed to load payment settings', 'error'); }
+    finally { setPaymentLoading(false); }
+  };
+  const handleTogglePayment = async (field, value) => {
+    const prev = { ...paymentSettings };
+    setPaymentSettings(prev => ({ ...prev, [field]: value }));
+    try {
+      const payload = {};
+      if (field === 'payNowEnabled') payload.payNowEnabled = value;
+      if (field === 'payLaterEnabled') payload.payLaterEnabled = value;
+      if (field === 'upiQrEnabled') payload.upiQrEnabled = value;
+      const res = await api.put('/api/shop/payment-settings', payload);
+      const d = res.data.data;
+      setPaymentSettings({ payNowEnabled: d.payNowEnabled !== false, payLaterEnabled: d.payLaterEnabled === true, upiQrEnabled: d.upiQrEnabled === true, qrImageUrl: d.qrImageUrl || prev.qrImageUrl || '' });
+      showToast('Payment settings updated', 'success');
+    } catch (err) { setPaymentSettings(prev); showToast(err.response?.data?.message || 'Failed to update', 'error'); }
+  };
+  const handleSaveQrImage = async () => {
+    if (!qrImageData && !qrRemoveFlag) { showToast('No changes to QR image', 'error'); return; }
+    setQrSaving(true);
+    try {
+      if (qrRemoveFlag) {
+        const res = await api.delete('/api/shop/payment-qr');
+        const d = res.data.data;
+        setPaymentSettings({ payNowEnabled: d.payNowEnabled !== false, payLaterEnabled: d.payLaterEnabled === true, upiQrEnabled: d.upiQrEnabled === true, qrImageUrl: '' });
+        setQrImageData(null); setQrRemoveFlag(false); showToast('QR image removed', 'success');
+      } else if (qrImageData) {
+        const res = await api.post('/api/shop/payment-qr', { imageData: qrImageData });
+        const d = res.data.data;
+        setPaymentSettings({ payNowEnabled: d.payNowEnabled !== false, payLaterEnabled: d.payLaterEnabled === true, upiQrEnabled: d.upiQrEnabled === true, qrImageUrl: d.qrImageUrl || '' });
+        setQrImageData(null); setQrRemoveFlag(false); showToast('QR image uploaded', 'success');
+      }
+    } catch (err) { showToast(err.response?.data?.message || 'Failed to save QR image', 'error'); }
+    finally { setQrSaving(false); }
   };
 
   const handleLogin = async (e) => {
@@ -1142,6 +1192,39 @@ export default function OwnerHome() {
               </div>
             </div>
           )}
+
+          {/* Payment Settings Section */}
+          <div className="rounded-2xl p-6 shadow-sm border" style={{ backgroundColor: 'var(--card-bg)', borderColor: 'var(--border-color)' }}>
+            <h3 className="text-lg sm:text-xl font-bold mb-2" style={{ color: 'var(--text-primary)' }}>Payment Settings</h3>
+            <p className="text-xs sm:text-sm mb-5" style={{ color: 'var(--text-secondary)' }}>Choose which payment methods customers see at checkout for this shop. QR is per shop and requires manual verification.</p>
+            {paymentLoading ? <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>Loading payment settings...</p> : (
+              <>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between p-4 rounded-xl" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
+                    <div className="flex items-center gap-3"><div className={`w-10 h-10 rounded-full flex items-center justify-center text-lg ${paymentSettings.payNowEnabled ? 'bg-green-100 text-green-600' : 'bg-gray-200 text-gray-500'}`}>💳</div><div><p className="font-semibold text-sm" style={{ color: 'var(--text-primary)' }}>Pay Now (Razorpay)</p><p className="text-xs" style={{ color: 'var(--text-secondary)' }}>{paymentSettings.payNowEnabled ? 'Enabled — customers can pay instantly' : 'Disabled'}</p></div></div>
+                    <button onClick={() => handleTogglePayment('payNowEnabled', !paymentSettings.payNowEnabled)} className={`relative inline-flex h-7 w-12 items-center rounded-full transition ${paymentSettings.payNowEnabled ? 'bg-green-500' : 'bg-gray-300'}`} aria-label="Toggle Pay Now"><span className={`inline-block h-5 w-5 transform rounded-full bg-white transition ${paymentSettings.payNowEnabled ? 'translate-x-6' : 'translate-x-1'}`} /></button>
+                  </div>
+                  <div className="flex items-center justify-between p-4 rounded-xl" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
+                    <div className="flex items-center gap-3"><div className={`w-10 h-10 rounded-full flex items-center justify-center text-lg ${paymentSettings.payLaterEnabled ? 'bg-green-100 text-green-600' : 'bg-gray-200 text-gray-500'}`}>💵</div><div><p className="font-semibold text-sm" style={{ color: 'var(--text-primary)' }}>Pay Later</p><p className="text-xs" style={{ color: 'var(--text-secondary)' }}>{paymentSettings.payLaterEnabled ? 'Enabled — pay at counter' : 'Disabled by default'}</p></div></div>
+                    <button onClick={() => handleTogglePayment('payLaterEnabled', !paymentSettings.payLaterEnabled)} className={`relative inline-flex h-7 w-12 items-center rounded-full transition ${paymentSettings.payLaterEnabled ? 'bg-green-500' : 'bg-gray-300'}`} aria-label="Toggle Pay Later"><span className={`inline-block h-5 w-5 transform rounded-full bg-white transition ${paymentSettings.payLaterEnabled ? 'translate-x-6' : 'translate-x-1'}`} /></button>
+                  </div>
+                  <div className="flex items-center justify-between p-4 rounded-xl" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
+                    <div className="flex items-center gap-3"><div className={`w-10 h-10 rounded-full flex items-center justify-center text-lg ${paymentSettings.upiQrEnabled ? 'bg-green-100 text-green-600' : 'bg-gray-200 text-gray-500'}`}>📱</div><div><p className="font-semibold text-sm" style={{ color: 'var(--text-primary)' }}>UPI QR</p><p className="text-xs" style={{ color: 'var(--text-secondary)' }}>{paymentSettings.upiQrEnabled ? 'Enabled — customer scans & pays to you' : 'Disabled by default'}</p></div></div>
+                    <button onClick={() => handleTogglePayment('upiQrEnabled', !paymentSettings.upiQrEnabled)} className={`relative inline-flex h-7 w-12 items-center rounded-full transition ${paymentSettings.upiQrEnabled ? 'bg-green-500' : 'bg-gray-300'}`} aria-label="Toggle UPI QR"><span className={`inline-block h-5 w-5 transform rounded-full bg-white transition ${paymentSettings.upiQrEnabled ? 'translate-x-6' : 'translate-x-1'}`} /></button>
+                  </div>
+                </div>
+                <div className="mt-5 p-4 rounded-xl border-2 border-dashed" style={{ borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-tertiary)' }}>
+                  <p className="font-semibold text-sm mb-1" style={{ color: 'var(--text-primary)' }}>Shop UPI QR Image</p>
+                  <p className="text-xs mb-3" style={{ color: 'var(--text-secondary)' }}>Upload your UPI QR. Stored per shop in Cloudinary. Customer scans and pays directly to you. Payment stays unpaid until you verify manually.</p>
+                  {paymentSettings.qrImageUrl && !qrRemoveFlag && !qrImageData ? <div className="flex flex-col sm:flex-row items-center gap-4 mb-3"><img src={paymentSettings.qrImageUrl} alt="UPI QR" className="w-36 h-36 object-contain bg-white p-2 rounded-xl border" /><p className="text-xs" style={{ color: 'var(--text-secondary)' }}>Current QR — customers see this when UPI QR selected.</p></div> : null}
+                  <ImageUploader key={paymentSettings.qrImageUrl || 'qr-uploader'} existingImageUrl={qrRemoveFlag ? null : (qrImageData || null)} onImageChange={(data) => { setQrImageData(data); if (data) setQrRemoveFlag(false); }} onRemove={() => { setQrRemoveFlag(true); setQrImageData(null); }} disabled={qrSaving} />
+                  {(qrImageData || qrRemoveFlag) && <div className="flex gap-3 mt-3"><button onClick={handleSaveQrImage} disabled={qrSaving} className="min-h-[44px] px-5 py-2 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-xl font-semibold disabled:opacity-50">{qrSaving ? 'Saving...' : qrRemoveFlag ? 'Confirm Remove QR' : 'Save QR Image'}</button><button onClick={() => { setQrImageData(null); setQrRemoveFlag(false); }} disabled={qrSaving} className="min-h-[44px] px-5 py-2 rounded-xl font-semibold border-2 disabled:opacity-50" style={{ backgroundColor: 'var(--card-bg)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}>Cancel</button></div>}
+                  {!paymentSettings.qrImageUrl && !qrImageData && !qrRemoveFlag && <p className="text-xs mt-3" style={{ color: 'var(--text-secondary)' }}>No QR uploaded yet.</p>}
+                  {paymentSettings.upiQrEnabled && !paymentSettings.qrImageUrl && !qrImageData && <p className="text-xs mt-2 text-amber-600">⚠️ UPI QR enabled but no image — customers see placeholder.</p>}
+                </div>
+              </>
+            )}
+          </div>
 
           {/* Shop Status Section */}
           <div className="rounded-2xl p-6 shadow-sm border" style={{ backgroundColor: 'var(--card-bg)', borderColor: 'var(--border-color)' }}>

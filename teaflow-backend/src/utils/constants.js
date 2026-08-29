@@ -73,4 +73,5 @@ export const PAYMENT_STATUS = {
 export const PAYMENT_METHOD = {
   PAY_LATER: 'pay_later',
   PAY_NOW: 'pay_now',
+  UPI_QR: 'upi_qr',
 };

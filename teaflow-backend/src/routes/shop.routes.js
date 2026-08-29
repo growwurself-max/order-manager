@@ -5,7 +5,12 @@ import {
   validateShopId, 
   getShopStatus, 
   updateShopOpenStatus, 
-  updateWorkerAvailability 
+  updateWorkerAvailability,
+  getPaymentSettings,
+  updatePaymentSettings,
+  uploadPaymentQr,
+  removePaymentQr,
+  getPaymentOptions
 } from '../controllers/shop.controller.js';
 import { authenticate } from '../middleware/auth.js';
 import { authorize } from '../middleware/role.js';
@@ -13,11 +18,17 @@ import { shopSettingsValidator } from '../middleware/validate.js';
 
 const router = express.Router();
 
-// Public route for customer Shop ID validation
+// Public routes (customer)
 router.get('/validate/:shopId', validateShopId);
-
-// Public route for shop status (customers can check if shop is open/worker availability)
 router.get('/status/:shopId', getShopStatus);
+router.get('/payment-options/:shopId', getPaymentOptions);
+router.get('/payment-options', getPaymentOptions);
+
+// Owner Payment Settings (tenant isolated)
+router.get('/payment-settings', authenticate, authorize('owner'), getPaymentSettings);
+router.put('/payment-settings', authenticate, authorize('owner'), updatePaymentSettings);
+router.post('/payment-qr', authenticate, authorize('owner'), uploadPaymentQr);
+router.delete('/payment-qr', authenticate, authorize('owner'), removePaymentQr);
 
 // Protected routes for owners
 router.get('/settings', authenticate, authorize('owner'), getShopSettings);

@@ -37,8 +37,10 @@ export default function CustomerHome() {
   const [error, setError] = useState('');
   const [initializing, setInitializing] = useState(true);
   const [recallBanner, setRecallBanner] = useState(null);
-  const [paymentMethod, setPaymentMethod] = useState('pay_later'); // pay_later | pay_now (default pay_later = existing behavior)
+  const [paymentMethod, setPaymentMethod] = useState('pay_now');
   const [paymentInitializing, setPaymentInitializing] = useState(false);
+  const [paymentOptions, setPaymentOptions] = useState({ payNowEnabled: true, payLaterEnabled: false, upiQrEnabled: false, qrImageUrl: '', loading: true });
+  const [paymentOptionsError, setPaymentOptionsError] = useState('');
   const pollingRef = useRef(null);
   const prevStatusMapRef = useRef({});
   const { connectToOrderEvents, disconnectFromOrderEvents } = useOrderNotification();
@@ -163,12 +165,36 @@ export default function CustomerHome() {
     }
   }, [step, trackingOrders.length]);
 
+  const fetchPaymentOptions = useCallback(async () => {
+    if (!shopId) { setPaymentOptions({ payNowEnabled: true, payLaterEnabled: false, upiQrEnabled: false, qrImageUrl: '', loading: false }); return; }
+    setPaymentOptions(p => ({ ...p, loading: true })); setPaymentOptionsError('');
+    try {
+      const res = await api.get(`/api/shop/payment-options/${encodeURIComponent(shopId)}`);
+      const d = res.data.data;
+      const opts = { payNowEnabled: d.payNowEnabled !== false, payLaterEnabled: d.payLaterEnabled === true, upiQrEnabled: d.upiQrEnabled === true, qrImageUrl: d.qrImageUrl || '', loading: false };
+      setPaymentOptions(opts);
+      setPaymentMethod(cur => {
+        if (cur === 'pay_now' && opts.payNowEnabled) return cur;
+        if (cur === 'pay_later' && opts.payLaterEnabled) return cur;
+        if (cur === 'upi_qr' && opts.upiQrEnabled) return cur;
+        if (opts.payNowEnabled) return 'pay_now';
+        if (opts.payLaterEnabled) return 'pay_later';
+        if (opts.upiQrEnabled) return 'upi_qr';
+        return cur;
+      });
+      if (d.shopName) setShopName(d.shopName);
+    } catch (err) { setPaymentOptions({ payNowEnabled: true, payLaterEnabled: false, upiQrEnabled: false, qrImageUrl: '', loading: false }); setPaymentOptionsError(err.response?.data?.message || 'Failed to load payment options'); }
+  }, [shopId]);
+
+  useEffect(() => { if (shopId) fetchPaymentOptions(); }, [shopId, fetchPaymentOptions]);
   useEffect(() => {
     if (step === 'menu' && menuItems.length === 0) {
       fetchMenu();
       fetchShopStatus();
+      fetchPaymentOptions();
     }
   }, [step]);
+  useEffect(() => { if ((step === 'cart' || step === 'menu') && shopId) fetchPaymentOptions(); }, [step, shopId, fetchPaymentOptions]);
 
   useEffect(() => {
     const handleRecallEvent = (event) => {
@@ -419,7 +445,11 @@ export default function CustomerHome() {
       return;
     }
 
+    if (paymentMethod === 'pay_now' && !paymentOptions.payNowEnabled) { setError('Pay Now is disabled for this shop.'); return; }
+    if (paymentMethod === 'pay_later' && !paymentOptions.payLaterEnabled) { setError('Pay Later is disabled for this shop.'); return; }
+    if (paymentMethod === 'upi_qr' && !paymentOptions.upiQrEnabled) { setError('UPI QR is disabled for this shop.'); return; }
     const isPayNow = paymentMethod === 'pay_now';
+    const isUpiQr = paymentMethod === 'upi_qr';
     
     if (isPayNow) {
       // Pay Now — create pending order + Razorpay order, then open checkout
@@ -519,10 +549,11 @@ export default function CustomerHome() {
       return;
     }
     
-    // Pay Later — existing flow with explicit paymentMethod
+    // Pay Later or UPI QR — manual verification, stays unpaid until Worker/Owner marks paid
     setLoading(true);
     setError('');
     try {
+      const methodForApi = isUpiQr ? 'upi_qr' : 'pay_later';
       const url = '/api/orders' + (shopId ? `?shopId=${shopId}` : '');
       const response = await api.post(url, {
         shopId,
@@ -534,7 +565,7 @@ export default function CustomerHome() {
           price: i.price,
         })),
         totalAmount: cart.reduce((sum, i) => sum + (i.price * i.quantity), 0),
-        paymentMethod: 'pay_later',
+        paymentMethod: methodForApi,
       });
       const newOrder = response.data.data;
       setOrderResult(newOrder);
@@ -1159,29 +1190,22 @@ export default function CustomerHome() {
                   </div>
                 </div>
 
-                {/* Payment method selector — Pay Now / Pay Later */}
+                {/* Payment method selector — only enabled for this shop */}
                 <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 mb-4">
                   <p className="text-sm font-semibold text-gray-700 mb-3">Select Payment Method</p>
-                  <div className="grid grid-cols-2 gap-3">
-                    <button
-                      type="button"
-                      onClick={() => setPaymentMethod('pay_later')}
-                      className={`min-h-[44px] rounded-xl px-4 py-3 text-sm font-semibold border-2 transition ${paymentMethod === 'pay_later' ? 'bg-amber-50 border-amber-500 text-amber-700' : 'bg-white border-gray-200 text-gray-700 hover:border-gray-300'}`}
-                    >
-                      <span className="block text-lg leading-none mb-1">💵</span> Pay Later
-                      <span className="block text-[11px] font-normal text-gray-500 mt-0.5">Pay at counter</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setPaymentMethod('pay_now')}
-                      className={`min-h-[44px] rounded-xl px-4 py-3 text-sm font-semibold border-2 transition ${paymentMethod === 'pay_now' ? 'bg-amber-50 border-amber-500 text-amber-700' : 'bg-white border-gray-200 text-gray-700 hover:border-gray-300'}`}
-                    >
-                      <span className="block text-lg leading-none mb-1">💳</span> Pay Now
-                      <span className="block text-[11px] font-normal text-gray-500 mt-0.5">Razorpay (Test)</span>
-                    </button>
-                  </div>
-                  {paymentMethod === 'pay_now' && (
-                    <p className="text-xs text-gray-500 mt-3">You will be redirected to Razorpay Checkout (test mode). Amount is calculated securely by the server.</p>
+                  {paymentOptions.loading ? <p className="text-sm text-gray-500">Loading payment options for this shop...</p> : (
+                    <>
+                      {paymentOptionsError && <p className="text-xs text-amber-600 mb-3">{paymentOptionsError}</p>}
+                      {!paymentOptions.payNowEnabled && !paymentOptions.payLaterEnabled && !paymentOptions.upiQrEnabled && <p className="text-sm text-red-600 bg-red-50 p-3 rounded-xl">No payment methods enabled for this shop.</p>}
+                      <div className={`grid gap-3 ${[paymentOptions.payNowEnabled, paymentOptions.payLaterEnabled, paymentOptions.upiQrEnabled].filter(Boolean).length === 3 ? 'grid-cols-3' : 'grid-cols-2'}`}>
+                        {paymentOptions.payLaterEnabled && <button type="button" onClick={() => setPaymentMethod('pay_later')} className={`min-h-[44px] rounded-xl px-3 py-3 text-sm font-semibold border-2 transition ${paymentMethod === 'pay_later' ? 'bg-amber-50 border-amber-500 text-amber-700' : 'bg-white border-gray-200 text-gray-700 hover:border-gray-300'}`}><span className="block text-lg leading-none mb-1">💵</span> Pay Later<span className="block text-[11px] font-normal text-gray-500 mt-0.5">Pay at counter</span></button>}
+                        {paymentOptions.payNowEnabled && <button type="button" onClick={() => setPaymentMethod('pay_now')} className={`min-h-[44px] rounded-xl px-3 py-3 text-sm font-semibold border-2 transition ${paymentMethod === 'pay_now' ? 'bg-amber-50 border-amber-500 text-amber-700' : 'bg-white border-gray-200 text-gray-700 hover:border-gray-300'}`}><span className="block text-lg leading-none mb-1">💳</span> Pay Now<span className="block text-[11px] font-normal text-gray-500 mt-0.5">Razorpay (Test)</span></button>}
+                        {paymentOptions.upiQrEnabled && <button type="button" onClick={() => setPaymentMethod('upi_qr')} className={`min-h-[44px] rounded-xl px-3 py-3 text-sm font-semibold border-2 transition ${paymentMethod === 'upi_qr' ? 'bg-amber-50 border-amber-500 text-amber-700' : 'bg-white border-gray-200 text-gray-700 hover:border-gray-300'}`}><span className="block text-lg leading-none mb-1">📱</span> UPI QR<span className="block text-[11px] font-normal text-gray-500 mt-0.5">Scan & Pay</span></button>}
+                      </div>
+                      {paymentMethod === 'pay_now' && paymentOptions.payNowEnabled && <p className="text-xs text-gray-500 mt-3">You will be redirected to Razorpay Checkout (test mode). Amount is calculated securely by the server.</p>}
+                      {paymentMethod === 'upi_qr' && paymentOptions.upiQrEnabled && <div className="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-xl"><p className="text-sm font-semibold text-amber-800 mb-2">Scan to Pay via UPI</p>{paymentOptions.qrImageUrl ? <img src={paymentOptions.qrImageUrl} alt="Shop UPI QR" className="w-48 h-48 object-contain bg-white p-2 rounded-xl border mx-auto" /> : <div className="w-48 h-48 bg-white border-2 border-dashed border-amber-300 rounded-xl flex items-center justify-center mx-auto"><p className="text-xs text-amber-600 text-center px-4">Shop QR not yet uploaded.<br/>Please ask at counter.</p></div>}<p className="text-xs text-amber-700 mt-3 text-center">Pay directly to shop. Payment stays <b>unpaid</b> until staff verifies it manually.</p></div>}
+                      {paymentMethod === 'pay_later' && <p className="text-xs text-gray-500 mt-3">Payment will be collected at the counter.</p>}
+                    </>
                   )}
                 </div>
 
@@ -1199,14 +1223,14 @@ export default function CustomerHome() {
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                   onClick={placeOrder}
-                  disabled={loading || paymentInitializing || !shopStatus.isOpenForOrders}
+                  disabled={loading || paymentInitializing || !shopStatus.isOpenForOrders || (!paymentOptions.payNowEnabled && !paymentOptions.payLaterEnabled && !paymentOptions.upiQrEnabled) || paymentOptions.loading}
                   className={`min-h-[44px] w-full py-3 sm:py-4 rounded-2xl text-base sm:text-lg font-semibold shadow-lg ${
-                    loading || paymentInitializing || !shopStatus.isOpenForOrders
+                    loading || paymentInitializing || !shopStatus.isOpenForOrders || (!paymentOptions.payNowEnabled && !paymentOptions.payLaterEnabled && !paymentOptions.upiQrEnabled)
                       ? 'bg-gray-300 text-gray-500 cursor-not-allowed opacity-50'
                       : 'bg-gradient-to-r from-amber-500 to-orange-500 text-white'
                   }`}
                 >
-                  {paymentInitializing ? 'Opening Razorpay…' : loading ? 'Placing Order...' : !shopStatus.isOpenForOrders ? 'Shop Closed' : paymentMethod === 'pay_now' ? 'Pay Now with Razorpay' : 'Place Order (Pay Later)'}
+                  {paymentInitializing ? 'Opening Razorpay…' : loading ? 'Placing Order...' : !shopStatus.isOpenForOrders ? 'Shop Closed' : paymentOptions.loading ? 'Loading...' : !paymentOptions.payNowEnabled && !paymentOptions.payLaterEnabled && !paymentOptions.upiQrEnabled ? 'No Payment Methods Available' : paymentMethod === 'pay_now' ? 'Pay Now with Razorpay' : paymentMethod === 'upi_qr' ? 'Place Order (UPI QR — Pay & Confirm)' : 'Place Order (Pay Later)'}
                 </motion.button>
               </>
             )}

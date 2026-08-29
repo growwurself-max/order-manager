@@ -168,8 +168,22 @@ export const getShopSettingsById = async (id) => {
   return {
     ...data,
     shop_identifier: getShopIdentifierFromRow(data) || data.shop_identifier || null,
-    is_open_for_orders: data.is_open_for_orders !== false, // Default to true if null
-    workers_available: data.workers_available !== false, // Default to true if null
+    is_open_for_orders: data.is_open_for_orders !== false,
+    workers_available: data.workers_available !== false,
+    payment_pay_now_enabled: data.payment_pay_now_enabled !== false ? true : data.payment_pay_now_enabled,
+    payment_pay_later_enabled: data.payment_pay_later_enabled === true,
+    payment_upi_qr_enabled: data.payment_upi_qr_enabled === true,
+    payment_upi_qr_image_url: data.payment_upi_qr_image_url || '',
+  };
+};
+
+export const getPaymentSettingsForShop = (shopData) => {
+  if (!shopData) return null;
+  return {
+    payNowEnabled: shopData.payment_pay_now_enabled !== false ? true : false,
+    payLaterEnabled: shopData.payment_pay_later_enabled === true,
+    upiQrEnabled: shopData.payment_upi_qr_enabled === true,
+    qrImageUrl: shopData.payment_upi_qr_image_url || '',
   };
 };
 

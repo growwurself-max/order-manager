@@ -62,17 +62,24 @@ export const placeOrder = async (req, res, next) => {
       });
     }
 
-    // Extract payment fields safely (whitelist)
+    // Extract payment fields safely (whitelist) - supports upi_qr manual flow
     const paymentMethodRaw = req.body.paymentMethod;
-    const allowedPaymentMethods = ['pay_later', 'pay_now', ''];
+    const allowedPaymentMethods = ['pay_later', 'pay_now', 'upi_qr', ''];
     const paymentMethod = allowedPaymentMethods.includes(paymentMethodRaw) ? paymentMethodRaw : '';
+    // Per-shop enabled check (tenant isolation, server-side)
+    const payNowEnabled = shopSettings.payment_pay_now_enabled !== false;
+    const payLaterEnabled = shopSettings.payment_pay_later_enabled === true;
+    const upiQrEnabled = shopSettings.payment_upi_qr_enabled === true;
+    const requestedMethod = paymentMethod || 'pay_later';
+    if (requestedMethod === 'pay_now' && !payNowEnabled) return res.status(HTTP_STATUS.FORBIDDEN).json({ message: 'Pay Now is disabled for this shop' });
+    if (requestedMethod === 'pay_later' && !payLaterEnabled) return res.status(HTTP_STATUS.FORBIDDEN).json({ message: 'Pay Later is disabled for this shop' });
+    if (requestedMethod === 'upi_qr' && !upiQrEnabled) return res.status(HTTP_STATUS.FORBIDDEN).json({ message: 'UPI QR payment is disabled for this shop' });
     
-    // Normalize payment fields for order creation (Pay Later explicitly)
     const orderData = {
       customer: req.body.customer,
       items: req.body.items,
       notes: req.body.notes,
-      paymentMethod: paymentMethod || 'pay_later', // default to pay_later for legacy callers
+      paymentMethod: requestedMethod,
     };
 
     const order = await createOrder(resolvedShopId, orderData);

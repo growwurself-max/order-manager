@@ -1,8 +1,9 @@
 import { HTTP_STATUS } from '../utils/constants.js';
 import { addIdAlias } from '../utils/responseFormatter.js';
-import { getShopSettingsById, updateShopSettings as updateShopSettingsDB } from '../services/supabase.service.js';
+import { getShopSettingsById, updateShopSettings as updateShopSettingsDB, getPaymentSettingsForShop } from '../services/supabase.service.js';
 import { getShopByIdentifier, validateShopIdFormat, isShopId } from '../utils/generateShopId.js';
 import { resolveShopId } from '../utils/resolveShopId.js';
+import { uploadImage, deleteImage } from '../services/image.service.js';
 
 export const getShopSettings = async (req, res, next) => {
   try {
@@ -269,4 +270,124 @@ export const updateWorkerAvailability = async (req, res, next) => {
   } catch (error) {
     next(error);
   }
+};
+
+// ===========================
+// Payment Settings (Owner per-shop)
+// ===========================
+
+export const getPaymentSettings = async (req, res, next) => {
+  try {
+    let shopId = req.user.shopId;
+    if (shopId && isShopId(shopId)) {
+      const resolved = await resolveShopId(shopId);
+      if (!resolved) return res.status(HTTP_STATUS.NOT_FOUND).json({ message: 'Shop not found' });
+      shopId = resolved;
+    }
+    const shop = await getShopSettingsById(shopId);
+    if (!shop) return res.status(HTTP_STATUS.NOT_FOUND).json({ message: 'Shop settings not found' });
+    const payment = getPaymentSettingsForShop(shop);
+    res.status(HTTP_STATUS.OK).json({
+      message: 'Payment settings fetched successfully',
+      data: { shopId: shop.id, shopIdentifier: shop.shop_identifier, shopName: shop.shop_name, ...payment },
+    });
+  } catch (error) { next(error); }
+};
+
+export const updatePaymentSettings = async (req, res, next) => {
+  try {
+    let shopId = req.user.shopId;
+    if (shopId && isShopId(shopId)) {
+      const resolved = await resolveShopId(shopId);
+      if (!resolved) return res.status(HTTP_STATUS.NOT_FOUND).json({ message: 'Shop not found' });
+      shopId = resolved;
+    }
+    const { payNowEnabled, payLaterEnabled, upiQrEnabled } = req.body;
+    const updates = {};
+    if (payNowEnabled !== undefined) {
+      if (typeof payNowEnabled !== 'boolean') return res.status(HTTP_STATUS.BAD_REQUEST).json({ message: 'payNowEnabled must be a boolean' });
+      updates.payment_pay_now_enabled = payNowEnabled;
+    }
+    if (payLaterEnabled !== undefined) {
+      if (typeof payLaterEnabled !== 'boolean') return res.status(HTTP_STATUS.BAD_REQUEST).json({ message: 'payLaterEnabled must be a boolean' });
+      updates.payment_pay_later_enabled = payLaterEnabled;
+    }
+    if (upiQrEnabled !== undefined) {
+      if (typeof upiQrEnabled !== 'boolean') return res.status(HTTP_STATUS.BAD_REQUEST).json({ message: 'upiQrEnabled must be a boolean' });
+      updates.payment_upi_qr_enabled = upiQrEnabled;
+    }
+    if (Object.keys(updates).length === 0) return res.status(HTTP_STATUS.BAD_REQUEST).json({ message: 'No valid payment settings provided' });
+    const updated = await updateShopSettingsDB(shopId, updates);
+    if (!updated) return res.status(HTTP_STATUS.NOT_FOUND).json({ message: 'Shop settings not found' });
+    const payment = getPaymentSettingsForShop(updated);
+    res.status(HTTP_STATUS.OK).json({ message: 'Payment settings updated successfully', data: payment });
+  } catch (error) { next(error); }
+};
+
+export const uploadPaymentQr = async (req, res, next) => {
+  try {
+    let shopId = req.user.shopId;
+    if (shopId && isShopId(shopId)) {
+      const resolved = await resolveShopId(shopId);
+      if (!resolved) return res.status(HTTP_STATUS.NOT_FOUND).json({ message: 'Shop not found' });
+      shopId = resolved;
+    }
+    const { imageData } = req.body;
+    if (!imageData || typeof imageData !== 'string') return res.status(HTTP_STATUS.BAD_REQUEST).json({ message: 'imageData is required (base64 image)' });
+    const shop = await getShopSettingsById(shopId);
+    if (!shop) return res.status(HTTP_STATUS.NOT_FOUND).json({ message: 'Shop not found' });
+    if (shop.payment_upi_qr_image_url) await deleteImage(shop.payment_upi_qr_image_url);
+    const imageUrl = await uploadImage(imageData, `teaflow/payment-qr/${shopId}`);
+    const updated = await updateShopSettingsDB(shopId, { payment_upi_qr_image_url: imageUrl });
+    const payment = getPaymentSettingsForShop(updated);
+    res.status(HTTP_STATUS.OK).json({ message: 'QR image uploaded successfully', data: payment });
+  } catch (error) {
+    if (error.message && error.message.includes('Image')) return res.status(HTTP_STATUS.BAD_REQUEST).json({ message: error.message });
+    next(error);
+  }
+};
+
+export const removePaymentQr = async (req, res, next) => {
+  try {
+    let shopId = req.user.shopId;
+    if (shopId && isShopId(shopId)) {
+      const resolved = await resolveShopId(shopId);
+      if (!resolved) return res.status(HTTP_STATUS.NOT_FOUND).json({ message: 'Shop not found' });
+      shopId = resolved;
+    }
+    const shop = await getShopSettingsById(shopId);
+    if (!shop) return res.status(HTTP_STATUS.NOT_FOUND).json({ message: 'Shop not found' });
+    if (shop.payment_upi_qr_image_url) await deleteImage(shop.payment_upi_qr_image_url);
+    const updated = await updateShopSettingsDB(shopId, { payment_upi_qr_image_url: '' });
+    const payment = getPaymentSettingsForShop(updated);
+    res.status(HTTP_STATUS.OK).json({ message: 'QR image removed successfully', data: payment });
+  } catch (error) { next(error); }
+};
+
+export const getPaymentOptions = async (req, res, next) => {
+  try {
+    const rawShopId = req.params.shopId || req.query.shopId;
+    if (!rawShopId) return res.status(HTTP_STATUS.BAD_REQUEST).json({ message: 'Shop ID is required' });
+    let resolvedShopId = rawShopId;
+    if (isShopId(rawShopId)) {
+      resolvedShopId = await resolveShopId(rawShopId);
+      if (!resolvedShopId) return res.status(HTTP_STATUS.NOT_FOUND).json({ message: 'Shop not found' });
+    } else {
+      const maybeResolved = await resolveShopId(rawShopId);
+      if (maybeResolved) resolvedShopId = maybeResolved;
+    }
+    const shop = await getShopSettingsById(resolvedShopId);
+    if (!shop) return res.status(HTTP_STATUS.NOT_FOUND).json({ message: 'Shop not found' });
+    const payment = getPaymentSettingsForShop(shop);
+    const response = {
+      shopId: shop.id,
+      shopIdentifier: shop.shop_identifier,
+      shopName: shop.shop_name,
+      payNowEnabled: payment.payNowEnabled,
+      payLaterEnabled: payment.payLaterEnabled,
+      upiQrEnabled: payment.upiQrEnabled,
+      qrImageUrl: payment.upiQrEnabled ? payment.qrImageUrl : '',
+    };
+    res.status(HTTP_STATUS.OK).json({ message: 'Payment options fetched successfully', data: response });
+  } catch (error) { next(error); }
 };

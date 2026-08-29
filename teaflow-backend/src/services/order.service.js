@@ -20,8 +20,9 @@ import { generateOrderNumber } from '../utils/generateOrderId.js';
 
 export const createOrder = async (shopId, orderData) => {
   const { customer, items, notes, paymentMethod } = orderData;
-  const normalizedPaymentMethod = [PAYMENT_METHOD.PAY_NOW, PAYMENT_METHOD.PAY_LATER].includes(paymentMethod) ? paymentMethod : PAYMENT_METHOD.PAY_LATER;
-  const paymentStatus = normalizedPaymentMethod === PAYMENT_METHOD.PAY_LATER ? PAYMENT_STATUS.UNPAID : PAYMENT_STATUS.PENDING;
+  const allowedMethods = [PAYMENT_METHOD.PAY_NOW, PAYMENT_METHOD.PAY_LATER, PAYMENT_METHOD.UPI_QR];
+  const normalizedPaymentMethod = allowedMethods.includes(paymentMethod) ? paymentMethod : PAYMENT_METHOD.PAY_LATER;
+  const paymentStatus = normalizedPaymentMethod === PAYMENT_METHOD.PAY_NOW ? PAYMENT_STATUS.PENDING : PAYMENT_STATUS.UNPAID;
 
   // Calculate total from menu items to ensure accuracy
   let totalAmount = 0;

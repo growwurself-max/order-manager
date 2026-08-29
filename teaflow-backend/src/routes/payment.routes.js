@@ -51,7 +51,8 @@ router.post('/order', optionalAuth, paymentOrderValidator, async (req, res, next
     if (shopSettings.is_open_for_orders === false) {
       return res.status(HTTP_STATUS.FORBIDDEN).json({ message: 'This shop is currently closed and not accepting orders' });
     }
-    // Remove unsafe fallback to first active shop — explicit shop required
+    const payNowEnabled = shopSettings.payment_pay_now_enabled !== false;
+    if (!payNowEnabled) return res.status(HTTP_STATUS.FORBIDDEN).json({ message: 'Pay Now is disabled for this shop' });
 
     const { customer, items, notes } = req.body;
     const { dbOrder, razorpayOrder } = await createPaymentOrder(resolvedShopId, {

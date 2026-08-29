@@ -46,6 +46,10 @@ export const addIdAlias = (obj) => {
   if (result.is_active !== undefined && result.isActive === undefined) result.isActive = result.is_active;
   if (result.shop_id !== undefined && result.shopId === undefined) result.shopId = result.shop_id;
   if (result.shop_name !== undefined && result.shopName === undefined) result.shopName = result.shop_name;
+  if (result.payment_pay_now_enabled !== undefined && result.paymentPayNowEnabled === undefined) result.paymentPayNowEnabled = result.payment_pay_now_enabled;
+  if (result.payment_pay_later_enabled !== undefined && result.paymentPayLaterEnabled === undefined) result.paymentPayLaterEnabled = result.payment_pay_later_enabled;
+  if (result.payment_upi_qr_enabled !== undefined && result.paymentUpiQrEnabled === undefined) result.paymentUpiQrEnabled = result.payment_upi_qr_enabled;
+  if (result.payment_upi_qr_image_url !== undefined && result.paymentUpiQrImageUrl === undefined) result.paymentUpiQrImageUrl = result.payment_upi_qr_image_url;
 
   // Map status_history items
   if (result.status_history && Array.isArray(result.status_history)) {
