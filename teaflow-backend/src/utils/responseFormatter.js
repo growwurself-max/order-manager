@@ -50,6 +50,7 @@ export const addIdAlias = (obj) => {
   if (result.payment_pay_later_enabled !== undefined && result.paymentPayLaterEnabled === undefined) result.paymentPayLaterEnabled = result.payment_pay_later_enabled;
   if (result.payment_upi_qr_enabled !== undefined && result.paymentUpiQrEnabled === undefined) result.paymentUpiQrEnabled = result.payment_upi_qr_enabled;
   if (result.payment_upi_qr_image_url !== undefined && result.paymentUpiQrImageUrl === undefined) result.paymentUpiQrImageUrl = result.payment_upi_qr_image_url;
+  if (result.payment_upi_vpa_id !== undefined && result.paymentUpiVpaId === undefined) result.paymentUpiVpaId = result.payment_upi_vpa_id;
 
   // Map status_history items
   if (result.status_history && Array.isArray(result.status_history)) {

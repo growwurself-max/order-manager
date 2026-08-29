@@ -1,8 +1,9 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { api, createRazorpayOrder, verifyRazorpayPayment } from '../../services/api';
 import { useOrderNotification } from '../../context/OrderNotificationContext';
 import ProductImage from '../../components/ProductImage';
+import { QRCodeSVG } from 'qrcode.react';
 
 const STORAGE_KEYS = {
   CUSTOMER_INFO: 'teaflow_customer',
@@ -39,7 +40,7 @@ export default function CustomerHome() {
   const [recallBanner, setRecallBanner] = useState(null);
   const [paymentMethod, setPaymentMethod] = useState('pay_now');
   const [paymentInitializing, setPaymentInitializing] = useState(false);
-  const [paymentOptions, setPaymentOptions] = useState({ payNowEnabled: true, payLaterEnabled: false, upiQrEnabled: false, qrImageUrl: '', loading: true });
+  const [paymentOptions, setPaymentOptions] = useState({ payNowEnabled: true, payLaterEnabled: false, upiQrEnabled: false, qrImageUrl: '', upiVpaId: '', loading: true });
   const [paymentOptionsError, setPaymentOptionsError] = useState('');
   const pollingRef = useRef(null);
   const prevStatusMapRef = useRef({});
@@ -165,13 +166,22 @@ export default function CustomerHome() {
     }
   }, [step, trackingOrders.length]);
 
+  const cartTotal = useMemo(() => cart.reduce((sum, i) => sum + (Number(i.price) * i.quantity), 0), [cart]);
+
+  const upiString = useMemo(() => {
+    const vpa = paymentOptions.upiVpaId || '';
+    if (!vpa) return '';
+    const amt = cartTotal.toFixed(2);
+    return `upi://pay?pa=${vpa}&pn=${encodeURIComponent(shopName || 'Shop')}&am=${amt}&cu=INR&tn=${encodeURIComponent('TeaFlow Order')}`;
+  }, [paymentOptions.upiVpaId, shopName, cartTotal]);
+
   const fetchPaymentOptions = useCallback(async () => {
-    if (!shopId) { setPaymentOptions({ payNowEnabled: true, payLaterEnabled: false, upiQrEnabled: false, qrImageUrl: '', loading: false }); return; }
+    if (!shopId) { setPaymentOptions({ payNowEnabled: true, payLaterEnabled: false, upiQrEnabled: false, qrImageUrl: '', upiVpaId: '', loading: false }); return; }
     setPaymentOptions(p => ({ ...p, loading: true })); setPaymentOptionsError('');
     try {
       const res = await api.get(`/api/shop/payment-options/${encodeURIComponent(shopId)}`);
       const d = res.data.data;
-      const opts = { payNowEnabled: d.payNowEnabled !== false, payLaterEnabled: d.payLaterEnabled === true, upiQrEnabled: d.upiQrEnabled === true, qrImageUrl: d.qrImageUrl || '', loading: false };
+      const opts = { payNowEnabled: d.payNowEnabled !== false, payLaterEnabled: d.payLaterEnabled === true, upiQrEnabled: d.upiQrEnabled === true, qrImageUrl: d.qrImageUrl || '', upiVpaId: d.upiVpaId || '', loading: false };
       setPaymentOptions(opts);
       setPaymentMethod(cur => {
         if (cur === 'pay_now' && opts.payNowEnabled) return cur;
@@ -183,7 +193,7 @@ export default function CustomerHome() {
         return cur;
       });
       if (d.shopName) setShopName(d.shopName);
-    } catch (err) { setPaymentOptions({ payNowEnabled: true, payLaterEnabled: false, upiQrEnabled: false, qrImageUrl: '', loading: false }); setPaymentOptionsError(err.response?.data?.message || 'Failed to load payment options'); }
+    } catch (err) { setPaymentOptions({ payNowEnabled: true, payLaterEnabled: false, upiQrEnabled: false, qrImageUrl: '', upiVpaId: '', loading: false }); setPaymentOptionsError(err.response?.data?.message || 'Failed to load payment options'); }
   }, [shopId]);
 
   useEffect(() => { if (shopId) fetchPaymentOptions(); }, [shopId, fetchPaymentOptions]);
@@ -1203,7 +1213,26 @@ export default function CustomerHome() {
                         {paymentOptions.upiQrEnabled && <button type="button" onClick={() => setPaymentMethod('upi_qr')} className={`min-h-[44px] rounded-xl px-3 py-3 text-sm font-semibold border-2 transition ${paymentMethod === 'upi_qr' ? 'bg-amber-50 border-amber-500 text-amber-700' : 'bg-white border-gray-200 text-gray-700 hover:border-gray-300'}`}><span className="block text-lg leading-none mb-1">📱</span> UPI QR<span className="block text-[11px] font-normal text-gray-500 mt-0.5">Scan & Pay</span></button>}
                       </div>
                       {paymentMethod === 'pay_now' && paymentOptions.payNowEnabled && <p className="text-xs text-gray-500 mt-3">You will be redirected to Razorpay Checkout (test mode). Amount is calculated securely by the server.</p>}
-                      {paymentMethod === 'upi_qr' && paymentOptions.upiQrEnabled && <div className="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-xl"><p className="text-sm font-semibold text-amber-800 mb-2">Scan to Pay via UPI</p>{paymentOptions.qrImageUrl ? <img src={paymentOptions.qrImageUrl} alt="Shop UPI QR" className="w-48 h-48 object-contain bg-white p-2 rounded-xl border mx-auto" /> : <div className="w-48 h-48 bg-white border-2 border-dashed border-amber-300 rounded-xl flex items-center justify-center mx-auto"><p className="text-xs text-amber-600 text-center px-4">Shop QR not yet uploaded.<br/>Please ask at counter.</p></div>}<p className="text-xs text-amber-700 mt-3 text-center">Pay directly to shop. Payment stays <b>unpaid</b> until staff verifies it manually.</p></div>}
+                      {paymentMethod === 'upi_qr' && paymentOptions.upiQrEnabled && (
+                        <div className="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-xl">
+                          <p className="text-sm font-semibold text-amber-800 mb-2">Scan to Pay via UPI — ₹{cartTotal.toFixed(2)}</p>
+                          {paymentOptions.upiVpaId ? (
+                            <>
+                              <div className="bg-white p-3 rounded-xl border w-fit mx-auto">
+                                <QRCodeSVG value={upiString} size={192} level="M" />
+                              </div>
+                              <p className="text-[11px] text-amber-700 mt-2 text-center font-mono break-all">{paymentOptions.upiVpaId} • ₹{cartTotal.toFixed(2)}</p>
+                              <a href={upiString} className="mt-3 flex md:hidden min-h-[44px] items-center justify-center gap-2 bg-gradient-to-r from-emerald-500 to-teal-600 text-white px-6 py-3 rounded-xl font-semibold shadow-md text-sm">📱 Open UPI App to Pay ₹{cartTotal.toFixed(2)}</a>
+                              <a href={upiString} className="mt-2 hidden md:flex min-h-[44px] items-center justify-center gap-2 bg-white border-2 border-emerald-300 text-emerald-700 px-6 py-3 rounded-xl font-semibold text-sm">Open UPI App to Pay ₹{cartTotal.toFixed(2)}</a>
+                            </>
+                          ) : paymentOptions.qrImageUrl ? (
+                            <img src={paymentOptions.qrImageUrl} alt="Shop UPI QR" className="w-48 h-48 object-contain bg-white p-2 rounded-xl border mx-auto" />
+                          ) : (
+                            <div className="w-48 h-48 bg-white border-2 border-dashed border-amber-300 rounded-xl flex items-center justify-center mx-auto"><p className="text-xs text-amber-600 text-center px-4">Shop QR not yet uploaded.<br/>Please ask at counter.</p></div>
+                          )}
+                          <p className="text-xs text-amber-700 mt-3 text-center">Pay directly to shop. Payment stays <b>unpaid</b> until staff verifies it manually.</p>
+                        </div>
+                      )}
                       {paymentMethod === 'pay_later' && <p className="text-xs text-gray-500 mt-3">Payment will be collected at the counter.</p>}
                     </>
                   )}

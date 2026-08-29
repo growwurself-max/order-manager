@@ -62,11 +62,13 @@ export default function OwnerHome() {
   });
 
   // Payment Settings (per-shop owner)
-  const [paymentSettings, setPaymentSettings] = useState({ payNowEnabled: true, payLaterEnabled: false, upiQrEnabled: false, qrImageUrl: '' });
+  const [paymentSettings, setPaymentSettings] = useState({ payNowEnabled: true, payLaterEnabled: false, upiQrEnabled: false, qrImageUrl: '', upiVpaId: '' });
   const [paymentLoading, setPaymentLoading] = useState(false);
   const [qrImageData, setQrImageData] = useState(null);
   const [qrRemoveFlag, setQrRemoveFlag] = useState(false);
   const [qrSaving, setQrSaving] = useState(false);
+  const [vpaInput, setVpaInput] = useState('');
+  const [vpaSaving, setVpaSaving] = useState(false);
 
   useEffect(() => {
     checkAuth();
@@ -228,7 +230,8 @@ export default function OwnerHome() {
     try {
       const response = await api.get('/api/shop/payment-settings');
       const d = response.data.data;
-      setPaymentSettings({ payNowEnabled: d.payNowEnabled !== false, payLaterEnabled: d.payLaterEnabled === true, upiQrEnabled: d.upiQrEnabled === true, qrImageUrl: d.qrImageUrl || '' });
+      setPaymentSettings({ payNowEnabled: d.payNowEnabled !== false, payLaterEnabled: d.payLaterEnabled === true, upiQrEnabled: d.upiQrEnabled === true, qrImageUrl: d.qrImageUrl || '', upiVpaId: d.upiVpaId || '' });
+      setVpaInput(d.upiVpaId || '');
       setQrImageData(null); setQrRemoveFlag(false);
     } catch (err) { showToast(err.response?.data?.message || 'Failed to load payment settings', 'error'); }
     finally { setPaymentLoading(false); }
@@ -243,9 +246,23 @@ export default function OwnerHome() {
       if (field === 'upiQrEnabled') payload.upiQrEnabled = value;
       const res = await api.put('/api/shop/payment-settings', payload);
       const d = res.data.data;
-      setPaymentSettings({ payNowEnabled: d.payNowEnabled !== false, payLaterEnabled: d.payLaterEnabled === true, upiQrEnabled: d.upiQrEnabled === true, qrImageUrl: d.qrImageUrl || prev.qrImageUrl || '' });
+      setPaymentSettings({ payNowEnabled: d.payNowEnabled !== false, payLaterEnabled: d.payLaterEnabled === true, upiQrEnabled: d.upiQrEnabled === true, qrImageUrl: d.qrImageUrl || prev.qrImageUrl || '', upiVpaId: d.upiVpaId || prev.upiVpaId || '' });
+      if (d.upiVpaId !== undefined) setVpaInput(d.upiVpaId || '');
       showToast('Payment settings updated', 'success');
     } catch (err) { setPaymentSettings(prev); showToast(err.response?.data?.message || 'Failed to update', 'error'); }
+  };
+  const handleSaveVpa = async () => {
+    const trimmed = vpaInput.trim().toLowerCase();
+    if (trimmed && !/^[\w.\-]{2,64}@[a-zA-Z0-9.\-]{2,64}$/.test(trimmed)) { showToast('Invalid UPI VPA format. Example: shop@upi or 9876543210@paytm', 'error'); return; }
+    setVpaSaving(true);
+    try {
+      const res = await api.put('/api/shop/payment-settings', { paymentUpiVpaId: trimmed });
+      const d = res.data.data;
+      setPaymentSettings(prev => ({ ...prev, upiVpaId: d.upiVpaId || '' }));
+      setVpaInput(d.upiVpaId || '');
+      showToast(trimmed ? 'UPI VPA saved' : 'UPI VPA cleared', 'success');
+    } catch (err) { showToast(err.response?.data?.message || 'Failed to save UPI VPA', 'error'); }
+    finally { setVpaSaving(false); }
   };
   const handleSaveQrImage = async () => {
     if (!qrImageData && !qrRemoveFlag) { showToast('No changes to QR image', 'error'); return; }
@@ -254,12 +271,12 @@ export default function OwnerHome() {
       if (qrRemoveFlag) {
         const res = await api.delete('/api/shop/payment-qr');
         const d = res.data.data;
-        setPaymentSettings({ payNowEnabled: d.payNowEnabled !== false, payLaterEnabled: d.payLaterEnabled === true, upiQrEnabled: d.upiQrEnabled === true, qrImageUrl: '' });
+        setPaymentSettings({ payNowEnabled: d.payNowEnabled !== false, payLaterEnabled: d.payLaterEnabled === true, upiQrEnabled: d.upiQrEnabled === true, qrImageUrl: '', upiVpaId: d.upiVpaId || '' });
         setQrImageData(null); setQrRemoveFlag(false); showToast('QR image removed', 'success');
       } else if (qrImageData) {
         const res = await api.post('/api/shop/payment-qr', { imageData: qrImageData });
         const d = res.data.data;
-        setPaymentSettings({ payNowEnabled: d.payNowEnabled !== false, payLaterEnabled: d.payLaterEnabled === true, upiQrEnabled: d.upiQrEnabled === true, qrImageUrl: d.qrImageUrl || '' });
+        setPaymentSettings({ payNowEnabled: d.payNowEnabled !== false, payLaterEnabled: d.payLaterEnabled === true, upiQrEnabled: d.upiQrEnabled === true, qrImageUrl: d.qrImageUrl || '', upiVpaId: d.upiVpaId || paymentSettings.upiVpaId || '' });
         setQrImageData(null); setQrRemoveFlag(false); showToast('QR image uploaded', 'success');
       }
     } catch (err) { showToast(err.response?.data?.message || 'Failed to save QR image', 'error'); }
@@ -1214,13 +1231,23 @@ export default function OwnerHome() {
                   </div>
                 </div>
                 <div className="mt-5 p-4 rounded-xl border-2 border-dashed" style={{ borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-tertiary)' }}>
-                  <p className="font-semibold text-sm mb-1" style={{ color: 'var(--text-primary)' }}>Shop UPI QR Image</p>
-                  <p className="text-xs mb-3" style={{ color: 'var(--text-secondary)' }}>Upload your UPI QR. Stored per shop in Cloudinary. Customer scans and pays directly to you. Payment stays unpaid until you verify manually.</p>
+                  <p className="font-semibold text-sm mb-1" style={{ color: 'var(--text-primary)' }}>UPI VPA / ID</p>
+                  <p className="text-xs mb-2" style={{ color: 'var(--text-secondary)' }}>Enter your UPI ID for dynamic QR generation (auto-filled amount). Example: <span className="font-mono">shop@upi</span> or <span className="font-mono">9876543210@paytm</span></p>
+                  <div className="flex gap-2">
+                    <input type="text" value={vpaInput} onChange={(e) => setVpaInput(e.target.value.toLowerCase())} placeholder="shop@upi" className="flex-1 min-h-[44px] px-4 py-3 rounded-xl border-2 focus:border-orange-300 focus:outline-none text-sm font-mono" style={{ backgroundColor: 'var(--input-bg)', color: 'var(--text-primary)', borderColor: 'var(--border-color)' }} />
+                    <button onClick={handleSaveVpa} disabled={vpaSaving} className="min-h-[44px] px-5 py-2 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-xl font-semibold disabled:opacity-50 whitespace-nowrap">{vpaSaving ? 'Saving...' : 'Save'}</button>
+                  </div>
+                  {paymentSettings.upiVpaId && <p className="text-xs mt-2" style={{ color: 'var(--text-secondary)' }}>Saved: <span className="font-mono font-semibold text-green-600">{paymentSettings.upiVpaId}</span> — customers will see a dynamic QR with cart total.</p>}
+                  {!paymentSettings.upiVpaId && <p className="text-xs mt-2 text-amber-600">No VPA saved — dynamic QR disabled. Customers will see static QR fallback if uploaded.</p>}
+                </div>
+                <div className="mt-5 p-4 rounded-xl border-2 border-dashed" style={{ borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-tertiary)' }}>
+                  <p className="font-semibold text-sm mb-1" style={{ color: 'var(--text-primary)' }}>Shop UPI QR Image (Fallback)</p>
+                  <p className="text-xs mb-3" style={{ color: 'var(--text-secondary)' }}>Upload static QR as fallback when VPA is empty. Stored per shop in Cloudinary. Payment stays unpaid until you verify manually.</p>
                   {paymentSettings.qrImageUrl && !qrRemoveFlag && !qrImageData ? <div className="flex flex-col sm:flex-row items-center gap-4 mb-3"><img src={paymentSettings.qrImageUrl} alt="UPI QR" className="w-36 h-36 object-contain bg-white p-2 rounded-xl border" /><p className="text-xs" style={{ color: 'var(--text-secondary)' }}>Current QR — customers see this when UPI QR selected.</p></div> : null}
                   <ImageUploader key={paymentSettings.qrImageUrl || 'qr-uploader'} existingImageUrl={qrRemoveFlag ? null : (qrImageData || null)} onImageChange={(data) => { setQrImageData(data); if (data) setQrRemoveFlag(false); }} onRemove={() => { setQrRemoveFlag(true); setQrImageData(null); }} disabled={qrSaving} />
                   {(qrImageData || qrRemoveFlag) && <div className="flex gap-3 mt-3"><button onClick={handleSaveQrImage} disabled={qrSaving} className="min-h-[44px] px-5 py-2 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-xl font-semibold disabled:opacity-50">{qrSaving ? 'Saving...' : qrRemoveFlag ? 'Confirm Remove QR' : 'Save QR Image'}</button><button onClick={() => { setQrImageData(null); setQrRemoveFlag(false); }} disabled={qrSaving} className="min-h-[44px] px-5 py-2 rounded-xl font-semibold border-2 disabled:opacity-50" style={{ backgroundColor: 'var(--card-bg)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}>Cancel</button></div>}
                   {!paymentSettings.qrImageUrl && !qrImageData && !qrRemoveFlag && <p className="text-xs mt-3" style={{ color: 'var(--text-secondary)' }}>No QR uploaded yet.</p>}
-                  {paymentSettings.upiQrEnabled && !paymentSettings.qrImageUrl && !qrImageData && <p className="text-xs mt-2 text-amber-600">⚠️ UPI QR enabled but no image — customers see placeholder.</p>}
+                  {paymentSettings.upiQrEnabled && !paymentSettings.qrImageUrl && !paymentSettings.upiVpaId && !qrImageData && <p className="text-xs mt-2 text-amber-600">⚠️ UPI QR enabled but no VPA/QR — customers see placeholder.</p>}
                 </div>
               </>
             )}

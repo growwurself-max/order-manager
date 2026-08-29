@@ -302,7 +302,8 @@ export const updatePaymentSettings = async (req, res, next) => {
       if (!resolved) return res.status(HTTP_STATUS.NOT_FOUND).json({ message: 'Shop not found' });
       shopId = resolved;
     }
-    const { payNowEnabled, payLaterEnabled, upiQrEnabled } = req.body;
+    const { payNowEnabled, payLaterEnabled, upiQrEnabled, paymentUpiVpaId, upiVpaId } = req.body;
+    const rawVpa = paymentUpiVpaId !== undefined ? paymentUpiVpaId : upiVpaId;
     const updates = {};
     if (payNowEnabled !== undefined) {
       if (typeof payNowEnabled !== 'boolean') return res.status(HTTP_STATUS.BAD_REQUEST).json({ message: 'payNowEnabled must be a boolean' });
@@ -315,6 +316,16 @@ export const updatePaymentSettings = async (req, res, next) => {
     if (upiQrEnabled !== undefined) {
       if (typeof upiQrEnabled !== 'boolean') return res.status(HTTP_STATUS.BAD_REQUEST).json({ message: 'upiQrEnabled must be a boolean' });
       updates.payment_upi_qr_enabled = upiQrEnabled;
+    }
+    if (rawVpa !== undefined) {
+      if (typeof rawVpa !== 'string') return res.status(HTTP_STATUS.BAD_REQUEST).json({ message: 'paymentUpiVpaId must be a string' });
+      const vpa = rawVpa.trim();
+      if (vpa.length > 100) return res.status(HTTP_STATUS.BAD_REQUEST).json({ message: 'UPI VPA too long (max 100 chars)' });
+      // Validate format: e.g. shop@upi, 9876543210@paytm — allow lowercase/numbers/dots/hyphens before @, and letters after
+      if (vpa !== '' && !/^[\w.\-]{2,64}@[a-zA-Z0-9.\-]{2,64}$/.test(vpa)) {
+        return res.status(HTTP_STATUS.BAD_REQUEST).json({ message: 'Invalid UPI VPA format. Example: shop@upi or 9876543210@paytm' });
+      }
+      updates.payment_upi_vpa_id = vpa.toLowerCase();
     }
     if (Object.keys(updates).length === 0) return res.status(HTTP_STATUS.BAD_REQUEST).json({ message: 'No valid payment settings provided' });
     const updated = await updateShopSettingsDB(shopId, updates);
@@ -387,6 +398,7 @@ export const getPaymentOptions = async (req, res, next) => {
       payLaterEnabled: payment.payLaterEnabled,
       upiQrEnabled: payment.upiQrEnabled,
       qrImageUrl: payment.upiQrEnabled ? payment.qrImageUrl : '',
+      upiVpaId: payment.upiVpaId || '',
     };
     res.status(HTTP_STATUS.OK).json({ message: 'Payment options fetched successfully', data: response });
   } catch (error) { next(error); }

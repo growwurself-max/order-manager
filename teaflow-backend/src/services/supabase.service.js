@@ -174,6 +174,7 @@ export const getShopSettingsById = async (id) => {
     payment_pay_later_enabled: data.payment_pay_later_enabled === true,
     payment_upi_qr_enabled: data.payment_upi_qr_enabled === true,
     payment_upi_qr_image_url: data.payment_upi_qr_image_url || '',
+    payment_upi_vpa_id: data.payment_upi_vpa_id || '',
   };
 };
 
@@ -184,6 +185,7 @@ export const getPaymentSettingsForShop = (shopData) => {
     payLaterEnabled: shopData.payment_pay_later_enabled === true,
     upiQrEnabled: shopData.payment_upi_qr_enabled === true,
     qrImageUrl: shopData.payment_upi_qr_image_url || '',
+    upiVpaId: shopData.payment_upi_vpa_id || '',
   };
 };
 

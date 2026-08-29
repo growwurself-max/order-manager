@@ -5,12 +5,14 @@ ALTER TABLE shop_settings ADD COLUMN IF NOT EXISTS payment_pay_now_enabled BOOLE
 ALTER TABLE shop_settings ADD COLUMN IF NOT EXISTS payment_pay_later_enabled BOOLEAN DEFAULT FALSE;
 ALTER TABLE shop_settings ADD COLUMN IF NOT EXISTS payment_upi_qr_enabled BOOLEAN DEFAULT FALSE;
 ALTER TABLE shop_settings ADD COLUMN IF NOT EXISTS payment_upi_qr_image_url TEXT DEFAULT '';
+ALTER TABLE shop_settings ADD COLUMN IF NOT EXISTS payment_upi_vpa_id TEXT DEFAULT '';
 
 -- Backfill existing rows to required defaults
 UPDATE shop_settings SET payment_pay_now_enabled = TRUE WHERE payment_pay_now_enabled IS NULL;
 UPDATE shop_settings SET payment_pay_later_enabled = FALSE WHERE payment_pay_later_enabled IS NULL;
 UPDATE shop_settings SET payment_upi_qr_enabled = FALSE WHERE payment_upi_qr_enabled IS NULL;
 UPDATE shop_settings SET payment_upi_qr_image_url = '' WHERE payment_upi_qr_image_url IS NULL;
+UPDATE shop_settings SET payment_upi_vpa_id = '' WHERE payment_upi_vpa_id IS NULL;
 
 -- Extend orders payment_method to include upi_qr
 DO $$ BEGIN
