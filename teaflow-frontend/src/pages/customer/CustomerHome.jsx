@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { api, createRazorpayOrder, verifyRazorpayPayment } from '../../services/api';
 import { useOrderNotification } from '../../context/OrderNotificationContext';
+import { useShop } from '../../context/ShopContext';
 import ProductImage from '../../components/ProductImage';
 import { QRCodeSVG } from 'qrcode.react';
 
@@ -13,6 +14,7 @@ const STORAGE_KEYS = {
 export default function CustomerHome() {
   const [step, setStep] = useState('welcome');
   const [customerInfo, setCustomerInfo] = useState({ name: '', phone: '', tableNumber: 'Takeaway' });
+  const { setShopName: setGlobalShopName } = useShop();
   const [shopId, setShopId] = useState(() => {
     const params = new URLSearchParams(window.location.search);
     const shopFromUrl = params.get('shop');
@@ -192,9 +194,9 @@ export default function CustomerHome() {
         if (opts.upiQrEnabled) return 'upi_qr';
         return cur;
       });
-      if (d.shopName) setShopName(d.shopName);
+      if (d.shopName) { setShopName(d.shopName); setGlobalShopName(d.shopName); }
     } catch (err) { setPaymentOptions({ payNowEnabled: true, payLaterEnabled: false, upiQrEnabled: false, qrImageUrl: '', upiVpaId: '', loading: false }); setPaymentOptionsError(err.response?.data?.message || 'Failed to load payment options'); }
-  }, [shopId]);
+  }, [shopId, setGlobalShopName]);
 
   useEffect(() => { if (shopId) fetchPaymentOptions(); }, [shopId, fetchPaymentOptions]);
   useEffect(() => {
@@ -374,6 +376,7 @@ export default function CustomerHome() {
       // Store the validated shop ID
       setShopId(manualShopId.trim());
       setShopName(data.shopName);
+      setGlobalShopName(data.shopName);
       localStorage.setItem('shopId', manualShopId.trim());
       
       // Move to customer info step

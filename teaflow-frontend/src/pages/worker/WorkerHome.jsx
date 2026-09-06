@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { api, setRoleSession, clearRoleSession } from '../../services/api';
 import { useToast } from '../../context/ToastContext';
+import { useShop } from '../../context/ShopContext';
 import { useOrderNotification } from '../../context/OrderNotificationContext';
 
 export default function WorkerHome() {
@@ -10,6 +11,7 @@ export default function WorkerHome() {
   const [orders, setOrders] = useState([]);
   const [error, setError] = useState('');
   const { showToast } = useToast();
+  const { setShopName } = useShop();
   const { playWorkerNewOrderSound } = useOrderNotification();
   const pollingRef = useRef(null);
   const processedOrderIds = useRef(new Set());
@@ -27,6 +29,7 @@ export default function WorkerHome() {
   useEffect(() => {
     if (isLoggedIn) {
       fetchActiveOrders();
+      fetchShopName();
       startPolling();
     }
     return () => {
@@ -83,6 +86,23 @@ export default function WorkerHome() {
       setIsLoggedIn(false);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const fetchShopName = async () => {
+    try {
+      const profileResponse = await api.get('/api/auth/profile');
+      const shopId = profileResponse.data?.data?.shop_id;
+      if (shopId) {
+        const response = await api.get(`/api/shop/validate/${shopId}`);
+        const data = response.data.data;
+        if (data.shopName) {
+          setShopName(data.shopName);
+        }
+      }
+    } catch (err) {
+      // Silent fail - shop name is not critical
+      console.log('Could not fetch shop name for worker');
     }
   };
 
@@ -212,6 +232,7 @@ export default function WorkerHome() {
       await api.post('/api/auth/logout');
       clearRoleSession('worker');
       setIsLoggedIn(false);
+      setShopName('');
       setOrders([]);
       showToast('Logged out successfully', 'success');
       if (pollingRef.current) clearInterval(pollingRef.current);

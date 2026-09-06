@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { api, setRoleSession, clearRoleSession, getFrontendUrl } from '../../services/api';
 import { useToast } from '../../context/ToastContext';
+import { useShop } from '../../context/ShopContext';
 import ImageUploader from '../../components/ImageUploader';
 import ProductImage from '../../components/ProductImage';
 
@@ -16,6 +17,7 @@ export default function OwnerHome() {
   const [ownerProfile, setOwnerProfile] = useState(null);
   const [error, setError] = useState('');
   const { showToast } = useToast();
+  const { setShopName } = useShop();
   const [theme, setTheme] = useState(() => localStorage.getItem('teaflow-theme') || 'light');
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
@@ -114,6 +116,12 @@ export default function OwnerHome() {
     }
   }, [isLoggedIn, activeTab]);
 
+  useEffect(() => {
+    if (isLoggedIn) {
+      fetchShopSettings();
+    }
+  }, [isLoggedIn]);
+
   const checkAuth = async () => {
     try {
       const response = await api.get('/api/auth/profile');
@@ -206,6 +214,9 @@ export default function OwnerHome() {
         currency: data.settings?.currency || 'INR',
         allowPreorder: data.settings?.allowPreorder || false,
       });
+      if (data.shopName) {
+        setShopName(data.shopName);
+      }
       // Set shop status
       setShopStatus({
         isOpenForOrders: data.is_open_for_orders !== false,
@@ -314,6 +325,7 @@ export default function OwnerHome() {
       await api.post('/api/auth/logout');
       clearRoleSession('owner');
       setIsLoggedIn(false);
+      setShopName('');
       setDashboardData(null);
       setMenuItems([]);
       setWorkers([]);

@@ -2,11 +2,13 @@ import { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { api } from '../services/api';
+import { useShop } from '../context/ShopContext';
 
 export default function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const location = useLocation();
+  const { shopName } = useShop();
 
   useEffect(() => {
     const checkAdmin = async () => {
@@ -31,7 +33,7 @@ export default function Header() {
           <div className="w-8 h-8 bg-accent-warm rounded-lg flex items-center justify-center text-white font-bold">
             S
           </div>
-          <span className="text-xl font-semibold text-cafe-dark">Made by SHA</span>
+          <span className="text-xl font-semibold text-cafe-dark">{shopName || 'Order Manager'}</span>
         </Link>
         
         {/* Mobile menu button */}

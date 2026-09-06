@@ -7,6 +7,7 @@ import LandingPage from './pages/LandingPage';
 import { OrderNotificationProvider } from './context/OrderNotificationContext';
 import { SuperAdminAuthProvider } from './context/SuperAdminAuthContext';
 import { ToastProvider } from './context/ToastContext';
+import { ShopProvider } from './context/ShopContext';
 import SuperAdminProtectedRoute from './components/SuperAdminProtectedRoute';
 import RoleProtectedRoute from './components/RoleProtectedRoute';
 import SuperAdminLayout from './layouts/SuperAdminLayout';
@@ -26,7 +27,8 @@ export default function App() {
     <BrowserRouter>
       <OrderNotificationProvider>
         <ToastProvider>
-          <Routes>
+          <ShopProvider>
+            <Routes>
             {/* Landing page - default route */}
             <Route path="/" element={<LandingPage />} />
 
@@ -84,8 +86,9 @@ export default function App() {
               <Route path="settings" element={<SettingsPage />} />
             </Route>
           </Routes>
-        </ToastProvider>
-      </OrderNotificationProvider>
+        </ShopProvider>
+      </ToastProvider>
+    </OrderNotificationProvider>
     </BrowserRouter>
   );
 }
