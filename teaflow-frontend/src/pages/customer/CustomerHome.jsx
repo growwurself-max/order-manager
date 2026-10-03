@@ -44,8 +44,11 @@ export default function CustomerHome() {
   const [paymentInitializing, setPaymentInitializing] = useState(false);
   const [paymentOptions, setPaymentOptions] = useState({ payNowEnabled: true, payLaterEnabled: false, upiQrEnabled: false, qrImageUrl: '', upiVpaId: '', loading: true });
   const [paymentOptionsError, setPaymentOptionsError] = useState('');
-  const pollingRef = useRef(null);
-  const prevStatusMapRef = useRef({});
+const pollingRef = useRef(null);
+const prevStatusMapRef = useRef({});
+// Guards so a slow response cannot be joined by the next polling tick.
+const orderPollInFlightRef = useRef(false);
+const shopStatusInFlightRef = useRef(false);
   const { connectToOrderEvents, disconnectFromOrderEvents } = useOrderNotification();
 
   const notifyCustomerOfReadyOrder = useCallback((order, type = 'order_ready') => {
@@ -130,8 +133,12 @@ export default function CustomerHome() {
     
     // Also poll for shop status updates periodically as fallback
     const shopStatusInterval = setInterval(() => {
+      if (document.hidden || shopStatusInFlightRef.current) return;
       if (step === 'menu' && shopId) {
-        fetchShopStatus();
+        shopStatusInFlightRef.current = true;
+        Promise.resolve(fetchShopStatus()).finally(() => {
+          shopStatusInFlightRef.current = false;
+        });
       }
     }, 30000); // Check every 30 seconds
 
@@ -154,9 +161,15 @@ export default function CustomerHome() {
         clearInterval(pollingRef.current);
       }
 
-      // Poll all active orders
+      // Poll all active orders.
+      // Skip while the tab is hidden and while the previous cycle is still in
+      // flight — otherwise a slow/cold response makes timers stack up.
       pollingRef.current = setInterval(() => {
-        fetchAllOrdersStatus(trackingOrders);
+        if (document.hidden || orderPollInFlightRef.current) return;
+        orderPollInFlightRef.current = true;
+        Promise.resolve(fetchAllOrdersStatus(trackingOrders)).finally(() => {
+          orderPollInFlightRef.current = false;
+        });
       }, 5000);
 
       return () => {
@@ -277,30 +290,47 @@ export default function CustomerHome() {
   };
 
   const fetchAllOrdersStatus = async (orders) => {
+    if (!orders?.length) return;
+
+    // Track the active orders in parallel. They used to be awaited one after
+    // another, so tracking N orders cost N sequential round trips every cycle.
+    // Side effects below are still applied in the original order, so behaviour
+    // (including notification ordering) is unchanged.
+    const responses = await Promise.all(
+      orders.map(async (order) => {
+        try {
+          const response = await api.get(`/api/orders/${order._id || order.orderId}/status`);
+          return { ok: true, data: response.data.data || response.data };
+        } catch {
+          // Keep the order as-is if fetch fails
+          return { ok: false, order };
+        }
+      })
+    );
+
     const updatedOrders = [];
     let hasChanges = false;
 
-    for (const order of orders) {
-      try {
-        const response = await api.get(`/api/orders/${order._id || order.orderId}/status`);
-        const data = response.data.data || response.data;
-        updatedOrders.push(data);
-
-        const orderKey = data._id || data.orderId;
-        const prevStatus = prevStatusMapRef.current[orderKey];
-
-        if (data.status === 'ready' && prevStatus && prevStatus !== 'ready') {
-          notifyCustomerOfReadyOrder(data);
-        }
-
-        if (prevStatus !== data.status) {
-          hasChanges = true;
-        }
-        prevStatusMapRef.current[orderKey] = data.status;
-      } catch (err) {
-        // Keep the order as-is if fetch fails
-        updatedOrders.push(order);
+    for (const result of responses) {
+      if (!result.ok) {
+        updatedOrders.push(result.order);
+        continue;
       }
+
+      const data = result.data;
+      updatedOrders.push(data);
+
+      const orderKey = data._id || data.orderId;
+      const prevStatus = prevStatusMapRef.current[orderKey];
+
+      if (data.status === 'ready' && prevStatus && prevStatus !== 'ready') {
+        notifyCustomerOfReadyOrder(data);
+      }
+
+      if (prevStatus !== data.status) {
+        hasChanges = true;
+      }
+      prevStatusMapRef.current[orderKey] = data.status;
     }
 
     setTrackingOrders(updatedOrders);
@@ -313,6 +343,7 @@ export default function CustomerHome() {
       clearInterval(pollingRef.current);
       pollingRef.current = null;
     }
+    return hasChanges;
   };
 
   const handleContinue = async (e) => {

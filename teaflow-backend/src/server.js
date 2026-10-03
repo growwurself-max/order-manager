@@ -67,14 +67,16 @@ const corsOptions = {
 app.use(cors(corsOptions));
 
 // Razorpay webhook requires raw body for signature verification.
-// Mount webhook router BEFORE global JSON parser so raw bytes are preserved.
-// We capture raw body for ALL requests via verify callback, then json parse.
-// Only /api/payment/webhook actually needs rawBody, but capturing globally is safe and cheap.
+// The webhook route reads `req.rawBody`, so it must keep working byte-for-byte.
+// Only POST bodies can ever need it (the only rawBody consumer is a POST
+// handler), so we stop retaining the buffer for the GET-heavy read traffic
+// (menu, order polling, SSE, stats) instead of holding a copy of every
+// response's request body until the request is garbage collected.
 app.use(
   express.json({
     limit: '10mb',
     verify: (req, _res, buf) => {
-      if (buf && buf.length) {
+      if (buf && buf.length && req.method === 'POST') {
         req.rawBody = buf; // Buffer retained for webhook HMAC verification
       }
     },
@@ -119,7 +121,12 @@ const generalLimiter = rateLimit({
   max: 500,
   message: { message: 'Too many requests, please try again later.' },
 });
-app.use('/api/', generalLimiter);
+// Health checks stay outside the limiter so platform uptime probes and client
+// warm-up pings can never be throttled into a false "server is down".
+app.use('/api/', (req, res, next) => {
+  if (req.path === '/health' || req.path === '/health/ping') return next();
+  return generalLimiter(req, res, next);
+});
 
 // SSE connections hold open sockets — cap them per IP to prevent resource exhaustion.
 const sseLimiter = rateLimit({
@@ -141,6 +148,13 @@ app.get('/api/health', (req, res) => {
     uptime: process.uptime(),
     timestamp: new Date().toISOString(),
   });
+});
+
+// Cheapest possible round trip: no middleware work, no database, no body.
+// The frontend uses this to wake a sleeping Render instance before real calls.
+app.get('/api/health/ping', (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.json({ ok: true, uptime: process.uptime() });
 });
 
 app.use('/api/auth', authRoutes);

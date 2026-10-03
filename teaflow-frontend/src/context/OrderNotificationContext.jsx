@@ -110,6 +110,15 @@ export function OrderNotificationProvider({ children }) {
   const audioContextRef = useRef(null);
   const notifiedOrderIds = useRef(new Set());
   const customerPhoneRef = useRef(null);
+const popupOrderRef = useRef(null);
+const sseReconnectTimerRef = useRef(null);
+
+// Keep the popup in a ref so `connectToOrderEvents` can stay referentially
+// stable. When it changed identity, every consumer effect tore down and
+// re-opened the SSE stream.
+useEffect(() => {
+  popupOrderRef.current = popupOrder;
+}, [popupOrder]);
 
   const showNotification = useCallback((payload) => {
     const type = payload.type || 'order_recall';
@@ -235,7 +244,7 @@ export function OrderNotificationProvider({ children }) {
               }
               return next;
             });
-            if (popupOrder && popupOrder.id === orderId) {
+            if (popupOrderRef.current && popupOrderRef.current.id === orderId) {
               setShowPopup(false);
               setPopupOrder(null);
             }
@@ -249,16 +258,26 @@ export function OrderNotificationProvider({ children }) {
       };
 
       es.onerror = function() {
-        setTimeout(function() {
+        // EventSource already retries transient drops on its own. Only step in
+        // once the browser has given up (readyState CLOSED), otherwise every
+        // blip opens an extra stream and the connections pile up.
+        if (es.readyState !== 2) return;
+        if (sseReconnectTimerRef.current) clearTimeout(sseReconnectTimerRef.current);
+        sseReconnectTimerRef.current = setTimeout(function() {
+          sseReconnectTimerRef.current = null;
           if (customerPhoneRef.current) connectToOrderEvents(customerPhoneRef.current);
         }, 3000);
       };
     } catch (e) {
       console.warn('SSE connection failed:', e.message);
     }
-  }, [popupOrder, showNotification]);
+  }, [showNotification]);
 
   const disconnectFromOrderEvents = useCallback(function() {
+    if (sseReconnectTimerRef.current) {
+      clearTimeout(sseReconnectTimerRef.current);
+      sseReconnectTimerRef.current = null;
+    }
     if (eventSourceRef.current) {
       eventSourceRef.current.close();
       eventSourceRef.current = null;
@@ -288,9 +307,12 @@ export function OrderNotificationProvider({ children }) {
 
   useEffect(function() {
     return function() {
-      if (eventSourceRef.current) eventSourceRef.current.close();
-      if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
-        audioContextRef.current.close().catch(function() {});
+      if (sseReconnectTimerRef.current) clearTimeout(sseReconnectTimerRef.current);
+      const source = eventSourceRef.current;
+      const audio = audioContextRef.current;
+      if (source) source.close();
+      if (audio && audio.state !== 'closed') {
+        audio.close().catch(function() {});
       }
     };
   }, []);

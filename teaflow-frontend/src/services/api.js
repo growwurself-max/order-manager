@@ -39,18 +39,80 @@ export const getRoleFromPath = () => {
 
 export const getRoleToken = () => null;
 
+// The API lives on a free-tier host that sleeps when idle, so the first
+// request after an idle period can take tens of seconds. Give it room, and let
+// the retry logic below cover the cold-start window instead of failing fast.
+export const API_TIMEOUT_MS = Number(import.meta.env.VITE_API_TIMEOUT_MS) || 20000;
+const GET_MAX_RETRIES = 2;
+const RETRY_DELAYS_MS = [1200, 3000];
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
 export const api = axios.create({
   baseURL: API_BASE_URL,
   withCredentials: true, // send the httpOnly auth cookie on every request
-  headers: {
-    'Content-Type': 'application/json',
-  },
+  timeout: API_TIMEOUT_MS,
+});
+
+// NOTE: deliberately no default 'Content-Type' header here.
+// `application/json` is not a CORS-safelisted header value, so sending it on
+// bodyless requests made the browser issue an OPTIONS preflight for *every*
+// GET — doubling round trips to the API. It is attached per-request below only
+// when there is a body to describe.
+
+// Collapse identical concurrent GETs into a single network call. Several
+// components ask for the same resource on mount (e.g. /api/auth/profile), and
+// polling timers can fire while a slow request is still in flight.
+const inflightGets = new Map();
+const baseAdapter = api.defaults.adapter;
+
+const dedupingAdapter = (config) => {
+  const method = (config.method || 'get').toLowerCase();
+  if (method !== 'get') return baseAdapter(config);
+
+  const key = `${config.baseURL || ''}${config.url}|${JSON.stringify(config.params || null)}`;
+  const existing = inflightGets.get(key);
+  if (existing) return existing;
+
+  const pending = baseAdapter(config).finally(() => {
+    if (inflightGets.get(key) === pending) inflightGets.delete(key);
+  });
+  inflightGets.set(key, pending);
+  return pending;
+};
+
+api.defaults.adapter = dedupingAdapter;
+
+api.interceptors.request.use((config) => {
+  const method = (config.method || 'get').toLowerCase();
+  const hasBody = config.data !== undefined && config.data !== null && config.data !== '';
+  if (hasBody && !config.headers['Content-Type']) {
+    config.headers['Content-Type'] = 'application/json';
+  }
+  return config;
 });
 
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
-    if (error.response?.status === 401) {
+  async (error) => {
+    const config = error.config || {};
+    const method = (config.method || 'get').toLowerCase();
+
+    // Only safe, idempotent reads are replayed automatically. Writes are never
+    // retried automatically to avoid duplicate orders or double charges.
+    const status = error.response?.status;
+    const networkIssue = !error.response || error.code === 'ECONNABORTED';
+    const serverIssue = status >= 500;
+    const maxRetries = method === 'get' ? GET_MAX_RETRIES : networkIssue ? 1 : 0;
+
+    const attempt = config.__retryAttempt || 0;
+    if ((networkIssue || serverIssue) && attempt < maxRetries) {
+      config.__retryAttempt = attempt + 1;
+      await sleep(RETRY_DELAYS_MS[attempt] || RETRY_DELAYS_MS[RETRY_DELAYS_MS.length - 1]);
+      return api.request(config);
+    }
+
+    if (status === 401) {
       const role = getRoleFromPath();
       if (role) clearRoleSession(role);
       else localStorage.removeItem('teaflow_active_role');
@@ -58,6 +120,30 @@ api.interceptors.response.use(
     return Promise.reject(error);
   }
 );
+
+/**
+ * Wake a sleeping server instance before the app issues real requests.
+ * Fire-and-forget, once per browser session, using fetch so it bypasses the
+ * retry/dedupe machinery and can never delay first paint.
+ */
+const warmUpBackend = () => {
+  if (typeof window === 'undefined' || !API_BASE_URL) return;
+  const flag = 'teaflow_warmed';
+  try {
+    if (sessionStorage.getItem(flag)) return;
+    sessionStorage.setItem(flag, '1');
+  } catch {
+    return; // storage unavailable (private mode) — skip warm-up
+  }
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 10000);
+  fetch(`${API_BASE_URL}/api/health/ping`, { mode: 'cors', credentials: 'omit', signal: controller.signal })
+    .catch(() => {})
+    .finally(() => clearTimeout(timer));
+};
+
+warmUpBackend();
 
 // Payment API helpers — Razorpay TEST MODE (defined after api to avoid TDZ)
 export const createRazorpayOrder = (payload) => api.post('/api/payment/order', payload);

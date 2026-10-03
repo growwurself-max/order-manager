@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { validateShopIdFormat, isShopId, getShopIdentifierFromRow } from '../src/utils/generateShopId.js';
+import { resolveShopId, isUuid, clearShopIdCache } from '../src/utils/resolveShopId.js';
 
 const test = async () => {
   // validateShopIdFormat
@@ -25,6 +26,26 @@ const test = async () => {
   assert.equal(getShopIdentifierFromRow({ settings: JSON.stringify({ shopId: 'S1006' }) }), 'S1006');
   assert.equal(getShopIdentifierFromRow({}), null);
   assert.equal(getShopIdentifierFromRow(null), null);
+
+  // isUuid
+  const uuid = '550e8400-e29b-41d4-a716-446655440000';
+  assert.equal(isUuid(uuid), true);
+  assert.equal(isUuid('S1001'), false);
+  assert.equal(isUuid(123), false);
+
+  // resolveShopId short-circuits without touching the database:
+  // a UUID passes straight through and invalid identifiers are rejected.
+  assert.equal(await resolveShopId(uuid), uuid);
+  assert.equal(await resolveShopId(`  ${uuid}  `), uuid);
+  assert.equal(await resolveShopId('S100'), null);
+  assert.equal(await resolveShopId(''), null);
+  assert.equal(await resolveShopId(null), null);
+  assert.equal(await resolveShopId(undefined), null);
+  assert.equal(await resolveShopId(12345), null);
+
+  // Cache invalidation helpers must be safe to call with no arguments.
+  clearShopIdCache();
+  clearShopIdCache('S1001');
 
   console.log('shop id helpers ok');
 };

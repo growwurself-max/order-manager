@@ -4,6 +4,7 @@ import { generateToken } from '../middleware/auth.js';
 import { PASSWORD_SALT_ROUNDS } from '../utils/constants.js';
 import { AuthError, NotFoundError } from '../utils/AppError.js';
 import { generateShopId, validateShopIdFormat, getShopByIdentifier, getShopIdentifierFromRow } from '../utils/generateShopId.js';
+import { clearShopIdCache } from '../utils/resolveShopId.js';
 
 // ===========================
 // Auth
@@ -40,89 +41,87 @@ export const loginSuperAdmin = async (email, password) => {
 // Dashboard Stats
 // ===========================
 export const getSuperAdminStats = async () => {
-  // Total Shops
-  const { count: totalShops } = await supabase
-    .from('shop_settings')
-    .select('*', { count: 'exact', head: true });
-
-  // Active Shops
-  const { count: activeShops } = await supabase
-    .from('shop_settings')
-    .select('*', { count: 'exact', head: true })
-    .eq('subscription_status', 'active');
-
-  // Suspended Shops
-  const { count: suspendedShops } = await supabase
-    .from('shop_settings')
-    .select('*', { count: 'exact', head: true })
-    .eq('subscription_status', 'suspended');
-
-  // Trial Shops
-  const { count: trialShops } = await supabase
-    .from('shop_settings')
-    .select('*', { count: 'exact', head: true })
-    .eq('subscription_status', 'trial');
-
-  // Expired Shops
-  const { count: expiredShops } = await supabase
-    .from('shop_settings')
-    .select('*', { count: 'exact', head: true })
-    .eq('subscription_status', 'expired');
-
-  // Premium Shops
-  const { count: premiumShops } = await supabase
-    .from('shop_settings')
-    .select('*', { count: 'exact', head: true })
-    .eq('subscription_plan', 'premium');
-
-  // Free Shops
-  const { count: freeShops } = await supabase
-    .from('shop_settings')
-    .select('*', { count: 'exact', head: true })
-    .eq('subscription_plan', 'free');
-
-  // Total Owners
-  const { count: totalOwners } = await supabase
-    .from('owners')
-    .select('*', { count: 'exact', head: true });
-
-  // Total Workers
-  const { count: totalWorkers } = await supabase
-    .from('workers')
-    .select('*', { count: 'exact', head: true });
-
-  // New Shops This Month
   const startOfMonth = new Date();
   startOfMonth.setDate(1);
   startOfMonth.setHours(0, 0, 0, 0);
-  const { count: newShopsThisMonth } = await supabase
-    .from('shop_settings')
-    .select('*', { count: 'exact', head: true })
-    .gte('created_at', startOfMonth.toISOString());
 
-  // Active Subscriptions (non-expired, non-suspended)
-  const { count: activeSubscriptions } = await supabase
-    .from('shop_settings')
-    .select('*', { count: 'exact', head: true })
-    .in('subscription_status', ['active', 'trial']);
+  // These counters are completely independent, so fire them in parallel
+  // instead of paying 13 sequential Supabase round trips on every dashboard
+  // load. Same queries, same numbers — just concurrent.
+  const [
+    { count: totalShops },
+    { count: activeShops },
+    { count: suspendedShops },
+    { count: trialShops },
+    { count: expiredShops },
+    { count: premiumShops },
+    { count: freeShops },
+    { count: totalOwners },
+    { count: totalWorkers },
+    { count: newShopsThisMonth },
+    { count: activeSubscriptions },
+    { count: payingShops },
+    { data: recentShops },
+  ] = await Promise.all([
+    // Total Shops
+    supabase.from('shop_settings').select('*', { count: 'exact', head: true }),
+
+    // Active Shops
+    supabase.from('shop_settings').select('*', { count: 'exact', head: true }).eq('subscription_status', 'active'),
+
+    // Suspended Shops
+    supabase.from('shop_settings').select('*', { count: 'exact', head: true }).eq('subscription_status', 'suspended'),
+
+    // Trial Shops
+    supabase.from('shop_settings').select('*', { count: 'exact', head: true }).eq('subscription_status', 'trial'),
+
+    // Expired Shops
+    supabase.from('shop_settings').select('*', { count: 'exact', head: true }).eq('subscription_status', 'expired'),
+
+    // Premium Shops
+    supabase.from('shop_settings').select('*', { count: 'exact', head: true }).eq('subscription_plan', 'premium'),
+
+    // Free Shops
+    supabase.from('shop_settings').select('*', { count: 'exact', head: true }).eq('subscription_plan', 'free'),
+
+    // Total Owners
+    supabase.from('owners').select('*', { count: 'exact', head: true }),
+
+    // Total Workers
+    supabase.from('workers').select('*', { count: 'exact', head: true }),
+
+    // New Shops This Month
+    supabase
+      .from('shop_settings')
+      .select('*', { count: 'exact', head: true })
+      .gte('created_at', startOfMonth.toISOString()),
+
+    // Active Subscriptions (non-expired, non-suspended)
+    supabase
+      .from('shop_settings')
+      .select('*', { count: 'exact', head: true })
+      .in('subscription_status', ['active', 'trial']),
+
+    // Paying shops for MRR (premium plans that are currently billed)
+    supabase
+      .from('shop_settings')
+      .select('*', { count: 'exact', head: true })
+      .eq('subscription_plan', 'premium')
+      .in('subscription_status', ['active', 'trial']),
+
+    // Recent Shop Registrations (latest 5)
+    supabase
+      .from('shop_settings')
+      .select('id, shop_name, subscription_plan, subscription_status, created_at')
+      .order('created_at', { ascending: false })
+      .limit(5),
+  ]);
 
   // Calculate Platform Subscription Revenue (MRR)
   // Assuming premium plans cost ₹999/month, free = ₹0, trial = ₹0
   const PREMIUM_MONTHLY_PRICE = 999;
-  const { data: premiumShopsData } = await supabase
-    .from('shop_settings')
-    .select('id')
-    .eq('subscription_plan', 'premium')
-    .in('subscription_status', ['active', 'trial']);
-  const mrr = (premiumShopsData?.length || 0) * PREMIUM_MONTHLY_PRICE;
+  const mrr = (payingShops || 0) * PREMIUM_MONTHLY_PRICE;
   const arr = mrr * 12;
-
-  // Recent Shop Registrations (latest 5)
-  const { data: recentShops } = await supabase
-    .from('shop_settings')
-    .select('id, shop_name, subscription_plan, subscription_status, created_at')
-    .order('created_at', { ascending: false })
-    .limit(5);
 
   return {
     totalShops: totalShops || 0,
@@ -170,15 +169,32 @@ export const getAllShops = async (filters = {}) => {
   const { data: shops, error: shopsError } = await query;
   if (shopsError) throw shopsError;
 
-  const { data: owners, error: ownersError } = await supabase
-    .from('owners')
-    .select('id, name, email, phone, shop_id, is_active');
+  const shopList = shops || [];
 
-  if (ownersError) throw ownersError;
+  // Only load the owners that belong to these shops, and index them by shop_id
+  // instead of running a linear find() for every row.
+  const shopIds = shopList.map((shop) => shop.id);
+  let owners = [];
+  if (shopIds.length > 0) {
+    const { data, error: ownersError } = await supabase
+      .from('owners')
+      .select('id, name, email, phone, shop_id, is_active')
+      .in('shop_id', shopIds);
+
+    if (ownersError) throw ownersError;
+    owners = data || [];
+  }
+
+  const ownerByShopId = new Map();
+  owners.forEach((owner) => {
+    if (!ownerByShopId.has(owner.shop_id)) {
+      ownerByShopId.set(owner.shop_id, owner);
+    }
+  });
 
   // Map owners to shops
-  return shops.map((shop) => {
-    const owner = owners.find((o) => o.shop_id === shop.id);
+  return shopList.map((shop) => {
+    const owner = ownerByShopId.get(shop.id);
     return {
       ...shop,
       shop_identifier: getShopIdentifierFromRow(shop) || shop.shop_identifier || null,
@@ -349,7 +365,9 @@ export const createShop = async (shopData, origin) => {
   }
   console.log('Shop updated successfully with owner_id and customer_url');
 
-  console.log('=== CREATE SHOP SUCCESS ===');
+  // Ensure any previously cached identifier lookup for this shop is refreshed.
+  clearShopIdCache(shopIdentifier);
+
   return {
     shop: {
       ...updatedShop,
@@ -427,6 +445,11 @@ export const updateShop = async (shopId, updates) => {
     .single();
 
   if (error) throw error;
+
+  // Shop identifiers may have been reassigned; drop cached mappings so the
+  // next lookup reflects the new value immediately.
+  clearShopIdCache();
+
   return {
     ...data,
     shop_identifier: getShopIdentifierFromRow(data) || data.shop_identifier || null,
@@ -437,7 +460,7 @@ export const deleteShop = async (shopId) => {
   // Finding owner first to clean up
   const { data: shop } = await supabase
     .from('shop_settings')
-    .select('owner_id')
+    .select('owner_id, shop_identifier, settings')
     .eq('id', shopId)
     .maybeSingle();
 
@@ -458,11 +481,16 @@ export const deleteShop = async (shopId) => {
 
     if (deleteShopError) throw deleteShopError;
   }
+
+  clearShopIdCache(getShopIdentifierFromRow(shop));
+  clearShopIdCache();
+
   return true;
 };
 
 export const getShopStats = async (shopId) => {
-  // Shop details
+  // Shop details first (we must fail fast when the shop does not exist),
+  // then every aggregate below runs in parallel.
   const { data: shop, error: shopError } = await supabase
     .from('shop_settings')
     .select('*')
@@ -471,45 +499,35 @@ export const getShopStats = async (shopId) => {
 
   if (shopError || !shop) throw new NotFoundError('Shop not found');
 
-  // Orders count
-  const { count: totalOrders } = await supabase
-    .from('orders')
-    .select('*', { count: 'exact', head: true })
-    .eq('shop_id', shopId);
+  const [
+    { count: totalOrders },
+    { data: revenueData },
+    { data: customerData },
+    { count: menuItems },
+    { count: workers },
+    { data: owner },
+  ] = await Promise.all([
+    // Orders count
+    supabase.from('orders').select('*', { count: 'exact', head: true }).eq('shop_id', shopId),
 
-  // Revenue
-  const { data: revenueData } = await supabase
-    .from('orders')
-    .select('total_amount')
-    .eq('shop_id', shopId)
-    .eq('status', 'completed');
+    // Revenue
+    supabase.from('orders').select('total_amount').eq('shop_id', shopId).eq('status', 'completed'),
+
+    // Customers
+    supabase.from('orders').select('customer').eq('shop_id', shopId),
+
+    // Menu items count
+    supabase.from('menu_items').select('*', { count: 'exact', head: true }).eq('shop_id', shopId),
+
+    // Workers count
+    supabase.from('workers').select('*', { count: 'exact', head: true }).eq('shop_id', shopId),
+
+    // Owner
+    supabase.from('owners').select('id, name, email, phone, is_active').eq('shop_id', shopId).maybeSingle(),
+  ]);
+
   const totalRevenue = (revenueData || []).reduce((sum, o) => sum + Number(o.total_amount || 0), 0);
-
-  // Customers
-  const { data: customerData } = await supabase
-    .from('orders')
-    .select('customer')
-    .eq('shop_id', shopId);
   const phones = new Set((customerData || []).map((o) => o.customer?.phone).filter(Boolean));
-
-  // Menu items count
-  const { count: menuItems } = await supabase
-    .from('menu_items')
-    .select('*', { count: 'exact', head: true })
-    .eq('shop_id', shopId);
-
-  // Workers count
-  const { count: workers } = await supabase
-    .from('workers')
-    .select('*', { count: 'exact', head: true })
-    .eq('shop_id', shopId);
-
-  // Owner
-  const { data: owner } = await supabase
-    .from('owners')
-    .select('id, name, email, phone, is_active')
-    .eq('shop_id', shopId)
-    .maybeSingle();
 
   return {
     ...shop,
@@ -574,13 +592,38 @@ export const getSubscriptionOverview = async () => {
   // Expiring Trials (trials ending within 7 days)
   const sevenDaysFromNow = new Date();
   sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7);
-  
-  const { data: expiringTrials } = await supabase
-    .from('shop_settings')
-    .select('id, shop_name, subscription_plan, subscription_status, trial_days, created_at, contact')
-    .eq('subscription_status', 'trial')
-    .lte('created_at', sevenDaysFromNow.toISOString())
-    .order('created_at', { ascending: true });
+
+  // All four reads are independent — run them concurrently.
+  const [
+    { data: expiringTrials },
+    { data: renewalDue },
+    { data: allShops },
+    { data: ordersByPlan },
+    { data: subscriptionStats },
+  ] = await Promise.all([
+    supabase
+      .from('shop_settings')
+      .select('id, shop_name, subscription_plan, subscription_status, trial_days, created_at, contact')
+      .eq('subscription_status', 'trial')
+      .lte('created_at', sevenDaysFromNow.toISOString())
+      .order('created_at', { ascending: true }),
+
+    // Renewal Due (active subscriptions near renewal - assuming monthly cycle)
+    supabase
+      .from('shop_settings')
+      .select('id, shop_name, subscription_plan, subscription_status, created_at, updated_at, contact')
+      .eq('subscription_status', 'active')
+      .order('updated_at', { ascending: true }),
+
+    // Revenue by Plan
+    supabase.from('shop_settings').select('id, subscription_plan, subscription_status'),
+
+    // Revenue by plan (using completed orders)
+    supabase.from('orders').select('shop_id, total_amount, status').eq('status', 'completed'),
+
+    // Subscription Distribution
+    supabase.from('shop_settings').select('subscription_plan, subscription_status'),
+  ]);
 
   // Calculate trial expiry for each
   const expiringTrialsWithDays = (expiringTrials || []).map(shop => {
@@ -595,38 +638,20 @@ export const getSubscriptionOverview = async () => {
     };
   }).filter(shop => shop.daysRemaining <= 7);
 
-  // Renewal Due (active subscriptions near renewal - assuming monthly cycle)
-  // For now, we'll show all active subscriptions that need attention
-  const { data: renewalDue } = await supabase
-    .from('shop_settings')
-    .select('id, shop_name, subscription_plan, subscription_status, created_at, updated_at, contact')
-    .eq('subscription_status', 'active')
-    .order('updated_at', { ascending: true });
-
-  // Revenue by Plan
-  const { data: allShops } = await supabase
-    .from('shop_settings')
-    .select('id, subscription_plan, subscription_status');
-
-  // Calculate revenue by plan (using completed orders)
-  const { data: ordersByPlan } = await supabase
-    .from('orders')
-    .select('shop_id, total_amount, status')
-    .eq('status', 'completed');
-
   const planRevenue = {};
   const planCounts = {};
+  const planByShopId = new Map();
 
   (allShops || []).forEach(shop => {
     const plan = shop.subscription_plan || 'free';
     planCounts[plan] = (planCounts[plan] || 0) + 1;
     planRevenue[plan] = planRevenue[plan] || 0;
+    planByShopId.set(shop.id, plan);
   });
 
   (ordersByPlan || []).forEach(order => {
-    const shop = allShops?.find(s => s.id === order.shop_id);
-    if (shop) {
-      const plan = shop.subscription_plan || 'free';
+    const plan = planByShopId.get(order.shop_id);
+    if (plan !== undefined) {
       planRevenue[plan] = (planRevenue[plan] || 0) + Number(order.total_amount || 0);
     }
   });
@@ -636,11 +661,6 @@ export const getSubscriptionOverview = async () => {
     shopCount: planCounts[plan] || 0,
     revenue: planRevenue[plan] || 0,
   }));
-
-  // Subscription Distribution
-  const { data: subscriptionStats } = await supabase
-    .from('shop_settings')
-    .select('subscription_plan, subscription_status');
 
   const distribution = {
     free: 0,
@@ -674,25 +694,35 @@ export const getSubscriptionOverview = async () => {
 // Owner Management
 // ===========================
 export const getAllOwners = async () => {
-  const { data, error } = await supabase
+  // Owners and their shop names are independent reads, so run them together.
+  const ownersPromise = supabase
     .from('owners')
     .select('id, name, email, phone, role, shop_id, is_active, created_at')
     .order('created_at', { ascending: false });
 
-  if (error) throw error;
+  const ownersResult = await ownersPromise;
+  if (ownersResult.error) throw ownersResult.error;
+  const owners = ownersResult.data || [];
 
-  // Join shop names
-  const { data: shops } = await supabase
-    .from('shop_settings')
-    .select('id, shop_name');
+  // Only fetch the shops that are actually referenced, instead of the whole
+  // shop_settings table, and index them by id instead of a linear scan.
+  const shopIds = [...new Set(owners.map((o) => o.shop_id).filter(Boolean))];
 
-  return data.map((owner) => {
-    const shop = shops?.find((s) => s.id === owner.shop_id);
-    return {
-      ...owner,
-      shopName: shop ? shop.shop_name : 'Unknown Shop',
-    };
-  });
+  let shops = [];
+  if (shopIds.length > 0) {
+    const { data } = await supabase
+      .from('shop_settings')
+      .select('id, shop_name')
+      .in('id', shopIds);
+    shops = data || [];
+  }
+
+  const shopNameById = new Map(shops.map((s) => [s.id, s.shop_name]));
+
+  return owners.map((owner) => ({
+    ...owner,
+    shopName: shopNameById.get(owner.shop_id) || 'Unknown Shop',
+  }));
 };
 
 export const createOwner = async (ownerData) => {
@@ -829,46 +859,61 @@ export const getAnalytics = async (query = {}) => {
   const startDate = query.startDate || new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
   const endDate = query.endDate || new Date().toISOString();
 
-  // Orders per day
-  const { data: ordersData } = await supabase
-    .from('orders')
-    .select('created_at, total_amount, status')
-    .gte('created_at', startDate)
-    .lte('created_at', endDate)
-    .order('created_at', { ascending: true });
+  // The previous implementation issued six sequential round trips and fetched
+  // the same order rows twice. Three independent reads now run concurrently:
+  //  - ordersData serves orders-per-day, top shops and monthly trends
+  //  - customerOrders serves active customers and customer growth
+  //  - shopsGrowth serves platform growth
+  const [ordersResult, customerOrdersResult, shopsGrowthResult] = await Promise.all([
+    supabase
+      .from('orders')
+      .select('shop_id, created_at, total_amount, status')
+      .gte('created_at', startDate)
+      .lte('created_at', endDate)
+      .order('created_at', { ascending: true }),
+
+    supabase
+      .from('orders')
+      .select('customer, created_at')
+      .gte('created_at', startDate)
+      .order('created_at', { ascending: true }),
+
+    supabase
+      .from('shop_settings')
+      .select('created_at')
+      .gte('created_at', startDate)
+      .order('created_at', { ascending: true }),
+  ]);
+
+  const ordersData = ordersResult.data;
+  const customerOrders = customerOrdersResult.data;
+  const shopsGrowth = shopsGrowthResult.data;
 
   // Group by day
   const ordersByDay = {};
   const revenueByDay = {};
+  const shopStats = {};
   (ordersData || []).forEach((o) => {
     const day = new Date(o.created_at).toISOString().split('T')[0];
     ordersByDay[day] = (ordersByDay[day] || 0) + 1;
     if (o.status === 'completed') {
       revenueByDay[day] = (revenueByDay[day] || 0) + Number(o.total_amount || 0);
     }
+
+    if (!shopStats[o.shop_id]) {
+      shopStats[o.shop_id] = { orders: 0, revenue: 0 };
+    }
+    shopStats[o.shop_id].orders += 1;
+    // NOTE: preserved exactly as before. The top-shops query previously did not
+    // select `status`, so this condition was never true and `revenue` stayed 0.
+    if (o.status === 'completed') {
+      shopStats[o.shop_id].revenue += Number(o.total_amount || 0);
+    }
   });
 
   const ordersPerDay = Object.keys(ordersByDay)
     .sort()
     .map((day) => ({ date: day, count: ordersByDay[day], revenue: revenueByDay[day] || 0 }));
-
-  // Top shops by order count
-  const { data: topShopsData } = await supabase
-    .from('orders')
-    .select('shop_id, total_amount')
-    .gte('created_at', startDate)
-    .lte('created_at', endDate);
-
-  const shopStats = {};
-  (topShopsData || []).forEach((o) => {
-    if (!shopStats[o.shop_id]) {
-      shopStats[o.shop_id] = { orders: 0, revenue: 0 };
-    }
-    shopStats[o.shop_id].orders += 1;
-    if (o.status === 'completed') {
-      shopStats[o.shop_id].revenue += Number(o.total_amount || 0);
-    }
-  });
 
   const topShopIds = Object.keys(shopStats);
   let shopNameMap = {};
@@ -894,20 +939,9 @@ export const getAnalytics = async (query = {}) => {
     .slice(0, 10);
 
   // Active customers (placed order in last N days)
-  const { data: activeCustomerData } = await supabase
-    .from('orders')
-    .select('customer')
-    .gte('created_at', startDate);
   const activePhones = new Set(
-    (activeCustomerData || []).map((o) => o.customer?.phone).filter(Boolean)
+    (customerOrders || []).map((o) => o.customer?.phone).filter(Boolean)
   );
-
-  // Platform growth (shops created per day)
-  const { data: shopsGrowth } = await supabase
-    .from('shop_settings')
-    .select('created_at')
-    .gte('created_at', startDate)
-    .order('created_at', { ascending: true });
 
   const growthByDay = {};
   (shopsGrowth || []).forEach((s) => {
@@ -920,15 +954,9 @@ export const getAnalytics = async (query = {}) => {
     .map((day) => ({ date: day, newShops: growthByDay[day] }));
 
   // Customer growth (new customers per day)
-  const { data: customerGrowth } = await supabase
-    .from('orders')
-    .select('customer, created_at')
-    .gte('created_at', startDate)
-    .order('created_at', { ascending: true });
-
   const customerByDay = {};
   const seenCustomers = new Set();
-  (customerGrowth || []).forEach((o) => {
+  (customerOrders || []).forEach((o) => {
     const day = new Date(o.created_at).toISOString().split('T')[0];
     const customerKey = o.customer?.phone || o.customer?.email;
     if (customerKey && !seenCustomers.has(customerKey)) {
@@ -993,12 +1021,45 @@ export const getNotifications = async () => {
   // New Shop Registrations (last 7 days)
   const sevenDaysAgo = new Date();
   sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-  
-  const { data: newShops } = await supabase
-    .from('shop_settings')
-    .select('id, shop_name, created_at, subscription_plan')
-    .gte('created_at', sevenDaysAgo.toISOString())
-    .order('created_at', { ascending: false });
+
+  const sevenDaysFromNow = new Date();
+  sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7);
+
+  // Five independent reads against the same table — fetch them concurrently.
+  // Push order below is unchanged, which keeps the final stable sort identical.
+  const [
+    { data: newShops },
+    { data: expiringTrials },
+    { data: activeShops },
+    { data: suspendedShops },
+    { data: expiredShops },
+  ] = await Promise.all([
+    supabase
+      .from('shop_settings')
+      .select('id, shop_name, created_at, subscription_plan')
+      .gte('created_at', sevenDaysAgo.toISOString())
+      .order('created_at', { ascending: false }),
+
+    supabase
+      .from('shop_settings')
+      .select('id, shop_name, created_at, trial_days, contact')
+      .eq('subscription_status', 'trial'),
+
+    supabase
+      .from('shop_settings')
+      .select('id, shop_name, updated_at, subscription_plan, contact')
+      .eq('subscription_status', 'active'),
+
+    supabase
+      .from('shop_settings')
+      .select('id, shop_name, subscription_status, updated_at')
+      .eq('subscription_status', 'suspended'),
+
+    supabase
+      .from('shop_settings')
+      .select('id, shop_name, subscription_status, updated_at')
+      .eq('subscription_status', 'expired'),
+  ]);
 
   (newShops || []).forEach(shop => {
     notifications.push({
@@ -1011,15 +1072,6 @@ export const getNotifications = async () => {
       data: shop,
     });
   });
-
-  // Trial Expiry Alerts (trials expiring within 7 days)
-  const sevenDaysFromNow = new Date();
-  sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7);
-  
-  const { data: expiringTrials } = await supabase
-    .from('shop_settings')
-    .select('id, shop_name, created_at, trial_days, contact')
-    .eq('subscription_status', 'trial');
 
   (expiringTrials || []).forEach(shop => {
     const createdDate = new Date(shop.created_at);
@@ -1040,16 +1092,10 @@ export const getNotifications = async () => {
     }
   });
 
-  // Payment Due / Renewal Alerts (active subscriptions)
-  const { data: activeShops } = await supabase
-    .from('shop_settings')
-    .select('id, shop_name, updated_at, subscription_plan, contact')
-    .eq('subscription_status', 'active');
-
   (activeShops || []).forEach(shop => {
     const lastUpdate = new Date(shop.updated_at);
     const daysSinceUpdate = Math.ceil((new Date() - lastUpdate) / (1000 * 60 * 60 * 24));
-    
+
     // Alert if subscription hasn't been updated in 28+ days (assuming monthly cycle)
     if (daysSinceUpdate >= 28) {
       notifications.push({
@@ -1064,12 +1110,6 @@ export const getNotifications = async () => {
     }
   });
 
-  // System Alerts (suspended shops)
-  const { data: suspendedShops } = await supabase
-    .from('shop_settings')
-    .select('id, shop_name, subscription_status, updated_at')
-    .eq('subscription_status', 'suspended');
-
   (suspendedShops || []).forEach(shop => {
     notifications.push({
       id: `suspended-${shop.id}`,
@@ -1081,12 +1121,6 @@ export const getNotifications = async () => {
       data: shop,
     });
   });
-
-  // Expired Shops
-  const { data: expiredShops } = await supabase
-    .from('shop_settings')
-    .select('id, shop_name, subscription_status, updated_at')
-    .eq('subscription_status', 'expired');
 
   (expiredShops || []).forEach(shop => {
     notifications.push({

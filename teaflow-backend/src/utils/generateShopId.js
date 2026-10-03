@@ -40,18 +40,21 @@ export function isShopId(value) {
   return validateShopIdFormat(value.trim());
 }
 
+// Only the columns needed to derive an identifier. Selecting `*` here would
+// ship every settings/branding/payment blob for the whole platform.
+const IDENTIFIER_COLUMNS = 'id, shop_identifier, settings';
+
 /**
  * Generate a unique sequential Shop ID in format: S#### (e.g., S1001, S1002)
  * @returns {Promise<string>} Unique shop identifier
  */
 export async function generateShopId() {
-  console.log('=== GENERATE SHOP ID START ===');
   const prefix = 'S';
-  
-  // Fetch all existing shop IDs to find the highest number
+
+  // Fetch only the identifier columns to find the highest number.
   const { data, error } = await supabase
     .from('shop_settings')
-    .select('*')
+    .select(IDENTIFIER_COLUMNS)
     .limit(1000);
 
   if (error) {
@@ -69,9 +72,7 @@ export async function generateShopId() {
   const maxId = existingIds.length > 0 ? Math.max(...existingIds) : 1000;
   const nextId = maxId + 1;
   const shopId = `${prefix}${nextId}`;
-  
-  console.log(`Generated sequential shop ID: ${shopId} (previous max: ${maxId})`);
-  console.log('=== GENERATE SHOP ID SUCCESS ===');
+
   return shopId;
 }
 
@@ -87,26 +88,66 @@ export function validateShopIdFormat(shopId) {
 
 /**
  * Get shop by shop identifier
+ *
+ * Performance: this runs on every public (customer) request, so it must never
+ * scan the whole shop_settings table. `shop_identifier` is a UNIQUE indexed
+ * column, so we hit that index directly. Legacy shops that only stored the
+ * identifier inside the `settings` JSONB blob are resolved with a small set of
+ * indexed jsonb lookups, in parallel.
+ *
  * @param {string} shopIdentifier - Shop ID (e.g., S1001)
  * @returns {Promise<Object|null>} Shop data or null
  */
 export async function getShopByIdentifier(shopIdentifier) {
-  const { data, error } = await supabase
+  if (shopIdentifier === undefined || shopIdentifier === null) return null;
+
+  const trimmed = String(shopIdentifier).trim();
+  if (!trimmed) return null;
+
+  // Guard against PostgREST filter injection: identifiers are always S####
+  // (see validateShopIdFormat) but this function is also reachable directly.
+  if (!/^[A-Za-z0-9_-]{1,32}$/.test(trimmed)) return null;
+
+  // Fast path — indexed UNIQUE column lookup (one tiny row).
+  const { data: direct, error: directError } = await supabase
     .from('shop_settings')
     .select('*')
-    .limit(1000);
+    .eq('shop_identifier', trimmed)
+    .limit(1);
 
-  if (error) {
-    throw new Error(`Error fetching shop by identifier: ${error.message}`);
+  if (directError) {
+    throw new Error(`Error fetching shop by identifier: ${directError.message}`);
   }
 
-  const matchingShop = data?.find((row) => getShopIdentifierFromRow(row) === shopIdentifier);
-  if (!matchingShop) {
-    return null;
+  if (direct && direct.length > 0) {
+    return {
+      ...direct[0],
+      shop_identifier: getShopIdentifierFromRow(direct[0]),
+    };
   }
 
-  return {
-    ...matchingShop,
-    shop_identifier: getShopIdentifierFromRow(matchingShop),
-  };
+  // Legacy fallback — identifier stored inside the settings JSONB column.
+  const legacyKeys = ['shop_identifier', 'shopId', 'shop_id', 'identifier'];
+  const legacyResults = await Promise.all(
+    legacyKeys.map((key) =>
+      supabase
+        .from('shop_settings')
+        .select('*')
+        .eq(`settings->>${key}`, trimmed)
+        .limit(1)
+    )
+  );
+
+  for (const result of legacyResults) {
+    if (result.error) continue;
+    const row = result.data && result.data[0];
+    if (row) {
+      return {
+        ...row,
+        shop_identifier: getShopIdentifierFromRow(row),
+      };
+    }
+  }
+
+  return null;
 }

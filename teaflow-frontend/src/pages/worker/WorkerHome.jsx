@@ -13,8 +13,9 @@ export default function WorkerHome() {
   const { showToast } = useToast();
   const { setShopName } = useShop();
   const { playWorkerNewOrderSound } = useOrderNotification();
-  const pollingRef = useRef(null);
-  const processedOrderIds = useRef(new Set());
+const pollingRef = useRef(null);
+const processedOrderIds = useRef(new Set());
+const pollInFlightRef = useRef(false);
 
   const [loginForm, setLoginForm] = useState({ username: '', password: '' });
   const [loginLoading, setLoginLoading] = useState(false);
@@ -45,9 +46,12 @@ export default function WorkerHome() {
   const startPolling = () => {
     if (pollingRef.current) clearInterval(pollingRef.current);
     pollingRef.current = setInterval(async () => {
+      // Never stack polls: a slow/cold response would otherwise let the next
+      // tick fire while this one is still running, and skip hidden tabs.
+      if (pollInFlightRef.current || document.hidden) return;
+      pollInFlightRef.current = true;
       try {
         const response = await api.get('/api/orders/active');
-        console.log('Polling orders response:', response.data);
         const newOrders = Array.isArray(response.data.data) ? response.data.data : [];
         setOrders(prev => {
           // Check for new orders (not status updates)
@@ -72,8 +76,9 @@ export default function WorkerHome() {
           });
         });
       } catch (err) {
-        console.error('Polling error:', err);
         // Silent fail for polling
+      } finally {
+        pollInFlightRef.current = false;
       }
     }, 8000);
   };

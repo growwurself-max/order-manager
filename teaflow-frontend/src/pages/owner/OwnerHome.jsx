@@ -555,7 +555,7 @@ export default function OwnerHome() {
     if (!window.confirm(`Mark order as ${newStatus}?`)) return;
     setActionLoading(true);
     try {
-      await api.patch(`/orders/${orderId}/payment`, { paymentStatus: newStatus });
+      await api.patch(`/api/orders/${orderId}/payment`, { paymentStatus: newStatus });
       showToast(`Order marked as ${newStatus}`, 'success');
       fetchOrders();
     } catch (err) {

@@ -5,9 +5,41 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Order Manager - Order & Pay</title>
+
+    <!-- Warm the API connection before any script runs, so the first request
+         does not pay for DNS + TLS. -->
+    <link rel="preconnect" href="https://ordermanager-u5vu.onrender.com" crossorigin />
+    <link rel="dns-prefetch" href="https://ordermanager-u5vu.onrender.com" />
+
+    <style>
+      /* Shown instantly so the browser is never a blank white screen while the
+         JS bundle downloads and parses. Replaced by React on mount. */
+      #app-boot {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #ffffff;
+      }
+      #app-boot .spinner {
+        width: 2.5rem;
+        height: 2.5rem;
+        border: 4px solid #fb923c;
+        border-top-color: transparent;
+        border-radius: 9999px;
+        animation: app-boot-spin 0.7s linear infinite;
+      }
+      @keyframes app-boot-spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+    </style>
   </head>
   <body>
     <div id="root"></div>
+    <div id="app-boot"><div class="spinner"></div></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
